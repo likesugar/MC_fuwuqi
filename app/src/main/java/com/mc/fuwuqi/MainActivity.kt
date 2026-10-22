@@ -49,12 +49,61 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
         root.addView(head)
         root.addView(scroll, Ui.lp(-1, 0, 1f))
         root.addView(bottom)
+        // 授权门：无存储权限先显示应用内授权页（参照物同款）
+        if (!Ui.needStorageSilent(this)) {
+            setContentView(permPage())
+            return
+        }
         setContentView(root)
         autoExtractContainer()
     }
 
+    private var permShown = false
+
+    private fun permPage(): android.view.View {
+        permShown = true
+        val c = Ui.linear(this, true)
+        c.setBackgroundColor(getColor(R.color.bg))
+        c.gravity = android.view.Gravity.CENTER
+        val pad = Ui.px(this, 32)
+        c.setPadding(pad, pad, pad, pad)
+        val icon = android.widget.ImageView(this)
+        icon.setImageResource(R.mipmap.ic_launcher)
+        icon.scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+        c.addView(icon, Ui.lp(Ui.px(this, 96), Ui.px(this, 96)))
+        val t = Ui.text(this, "MC开服", 24f, getColor(R.color.text), true)
+        t.gravity = android.view.Gravity.CENTER
+        t.setPadding(0, Ui.px(this, 20), 0, Ui.px(this, 8))
+        c.addView(t)
+        val sub = Ui.text(this, "开服前需要「所有文件访问权限」\n用于存放服务器文件、解压容器和运行核心", 15f, getColor(R.color.text_sub))
+        sub.gravity = android.view.Gravity.CENTER
+        c.addView(sub)
+        val btn = Ui.text(this, "授予权限", 17f, Color.WHITE, true)
+        btn.gravity = android.view.Gravity.CENTER
+        btn.setBackgroundResource(R.drawable.bg_btn_green)
+        val bp = Ui.lp(-1, Ui.px(this, 52))
+        bp.topMargin = Ui.px(this, 36)
+        c.addView(btn, bp)
+        btn.setOnClickListener {
+            if (android.os.Build.VERSION.SDK_INT >= 30) {
+                try {
+                    startActivity(android.content.Intent(
+                        android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION,
+                        android.net.Uri.parse("package:$packageName")))
+                } catch (e: Exception) {
+                    startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
+                }
+            }
+        }
+        return c
+    }
+
     override fun onResume() {
         super.onResume()
+        if (permShown && Ui.needStorageSilent(this)) {
+            permShown = false
+            recreate()
+        }
         if (Ui.needStorage(this)) render()
         UiBus.subscribe { runOnUiThread { render() } }
     }
