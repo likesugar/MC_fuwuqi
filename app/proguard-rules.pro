@@ -1,0 +1,4 @@
+-dontwarn org.apache.commons.compress.**
+-dontwarn org.slf4j.**
+-dontwarn org.osgi.framework.**
+-keep class com.mc.fuwuqi.** { *; }

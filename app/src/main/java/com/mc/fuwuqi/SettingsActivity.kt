@@ -34,7 +34,7 @@ class SettingsActivity : androidx.appcompat.app.AppCompatActivity() {
         super.onCreate(b)
         val root = Ui.linear(this, true)
         root.setBackgroundColor(getColor(R.color.bg))
-        root.addView(Ui.topBar(this, "设置${try { packageManager.getPackageInfo(packageName, 0)!!.versionName } catch (e: Exception) { "?" }}（vc${try { packageManager.getPackageInfo(packageName, 0)!!.longVersionCode.toInt() } catch (e: Exception) { 0 }}）", "容器 · 运行时 · 高级"))
+        root.addView(Ui.topBar(this, "设置", "容器 · 运行时 · 高级"))
 
         listWrap = Ui.linear(this, true)
         listWrap.setPadding(Ui.px(this, 20), Ui.px(this, 4), Ui.px(this, 20), Ui.px(this, 24))

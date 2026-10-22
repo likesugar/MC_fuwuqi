@@ -28,7 +28,6 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
             else androidx.appcompat.app.AppCompatDelegate.MODE_NIGHT_NO)
         super.onCreate(b)
         installCrashHook()
-        autoExtractContainer()
         val root = Ui.linear(this, true)
         root.setBackgroundColor(getColor(R.color.bg))
 
@@ -51,6 +50,7 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
         root.addView(scroll, Ui.lp(-1, 0, 1f))
         root.addView(bottom)
         setContentView(root)
+        autoExtractContainer()
     }
 
     override fun onResume() {
@@ -85,10 +85,15 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
 
     private fun autoExtractContainer() {
         // 参照物同款：首次使用自动解压内置容器（后台，无需手点）
-        if (!Store.hasRootfs() && Ui.needStorageSilent(this)) {
-            Thread {
-                try { Container.ensureRootfs(applicationContext) { _ -> } } catch (_: Exception) {}
-            }.start()
+        if (!Store.hasRootfs()) {
+            // 有权限直接解压；没权限先弹授权页，回来 onResume 会再触发
+            if (Ui.needStorageSilent(this)) {
+                Thread {
+                    try { Container.ensureRootfs(applicationContext) { _ -> } } catch (_: Exception) {}
+                }.start()
+            } else if (android.os.Build.VERSION.SDK_INT >= 30 && !android.os.Environment.isExternalStorageManager()) {
+                Ui.needStorage(this)
+            }
         }
     }
 
