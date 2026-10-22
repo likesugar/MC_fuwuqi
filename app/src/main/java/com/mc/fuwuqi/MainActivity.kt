@@ -100,11 +100,15 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (permShown && Ui.needStorageSilent(this)) {
-            permShown = false
-            recreate()
+        if (permShown) {
+            // 授权页流程中：授予了就重建进主页，没授予留在授权页等按钮
+            if (Ui.needStorageSilent(this)) {
+                permShown = false
+                recreate()
+            }
+            return
         }
-        if (Ui.needStorage(this)) render()
+        if (Ui.needStorageSilent(this)) render()
         UiBus.subscribe { runOnUiThread { render() } }
     }
 
@@ -140,8 +144,6 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
                 Thread {
                     try { Container.ensureRootfs(applicationContext) { _ -> } } catch (_: Exception) {}
                 }.start()
-            } else if (android.os.Build.VERSION.SDK_INT >= 30 && !android.os.Environment.isExternalStorageManager()) {
-                Ui.needStorage(this)
             }
         }
     }
