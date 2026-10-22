@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="green">#4FC3F7</color>
+    <color name="green_dark">#2B7FB0</color>
+    <color name="green_pale">#E3F4FC</color>
+    <color name="bg">#F5F6F5</color>
+    <color name="card">#FFFFFF</color>
+    <color name="text">#17181A</color>
+    <color name="text_sub">#8A8F8C</color>
+    <color name="line">#EDEEEC</color>
+    <color name="danger">#C0392B</color>
+    <color name="amber_text">#B07818</color>
+    <color name="amber_bg">#FBF3DC</color>
+    <color name="console_bg">#FAFAF8</color>
+</resources>

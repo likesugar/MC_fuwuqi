@@ -1,0 +1,211 @@
+package com.mc.fuwuqi
+
+import android.os.Environment
+import java.io.BufferedReader
+import java.io.File
+import java.io.InputStreamReader
+import java.io.PrintWriter
+import java.net.Inet4Address
+import java.net.NetworkInterface
+import org.json.JSONObject
+
+/**
+ * 服务器进程管理：proot 跑 java。
+ * 单例持有当前运行中的服（同一时间一个），控制台输出环形缓冲。
+ */
+object ServerManager {
+
+    private var proc: Process? = null
+    private var stdin: PrintWriter? = null
+    private var watcher: Thread? = null
+
+    @Volatile var runningId: String? = null
+        private set
+    @Volatile var starting: Boolean = false
+        private set
+
+    private val buf = StringBuilder()
+    private val listeners = mutableListOf<(String) -> Unit>()
+    private var wakeLock: android.os.PowerManager.WakeLock? = null
+
+    const val MAX_BUF = 100_000
+
+    fun onLine(cb: (String) -> Unit) { synchronized(listeners) { listeners.add(cb) } }
+    fun offLine(cb: (String) -> Unit) { synchronized(listeners) { listeners.remove(cb) } }
+
+    private fun emit(s: String) {
+        synchronized(buf) {
+            buf.append(s).append('\n')
+            if (buf.length > MAX_BUF) buf.delete(0, buf.length - MAX_BUF)
+        }
+        val line = s
+        synchronized(listeners) { listeners.toList().forEach { it(line) } }
+    }
+
+    fun consoleText(): String = synchronized(buf) { buf.toString() }
+
+    fun isRunning(id: String): Boolean = runningId == id && proc?.isAlive == true
+
+    fun localIp(): String = try {
+        var found = ""
+        val nis = NetworkInterface.getNetworkInterfaces()
+        for (ni in nis) {
+            for (ia in ni.inetAddresses) {
+                if (!ia.isLoopbackAddress && ia is Inet4Address) { found = ia.hostAddress ?: ""; break }
+            }
+            if (found.isNotEmpty()) break
+        }
+        found
+    } catch (e: Exception) { "" }
+
+    /** 启动（异步，进度经 cb 回调）。成功回调 "OK"，失败回调 "ERR:xxx" */
+    fun start(ctx: android.content.Context, srv: JSONObject, cb: (String) -> Unit) {
+        if (runningId != null || starting) { cb("ERR:已有服务器在运行"); return }
+        starting = true
+        Store.initInternal(ctx.applicationContext)
+        Thread {
+            try {
+                val appCtx = ctx.applicationContext
+                if (!Container.hasProot(appCtx)) throw RuntimeException("proot 未就绪")
+                if (!Store.hasRootfs()) {
+                    Container.ensureRootfs(appCtx) { emit("· $it") }
+                }
+                val jv = srv.optInt("javaVersion", Container.javaForMc(srv.optString("mcVersion")))
+                if (!Store.hasJdk(jv)) Container.downloadJdk(jv) { emit("· $it") }
+                val dir = Store.serverDir(srv.optString("id"))
+                dir.mkdirs()
+                if (!File(dir, "server.jar").isFile) throw RuntimeException("server.jar 缺失")
+                // eula + 默认配置
+                val eula = File(dir, "eula.txt")
+                if (!eula.exists()) eula.writeText("#Auto\neula=true\n")
+                val props = File(dir, "server.properties")
+                if (!props.exists()) {
+                    val custom = srv.optJSONObject("props")
+                    if (custom != null) {
+                        props.writeText(custom.keys().asSequence().joinToString("\n") { "$it=${custom.optString(it)}" } + "\n")
+                    }
+                }
+                if (!props.exists()) {
+                    props.writeText("server-port=${srv.optInt("port", 25565)}\n" +
+                        "motd=${srv.optString("motd", "A Minecraft Server")}\n" +
+                        "max-players=${srv.optInt("maxPlayers", 20)}\n" +
+                        "online-mode=${srv.optBoolean("onlineMode", false)}\n" +
+                        "difficulty=${srv.optString("difficulty", "easy")}\ngamemode=${srv.optString("gamemode", "survival")}\nenable-rcon=false\nspawn-protection=0\nview-distance=6\nsimulation-distance=4\nsync-chunk-writes=false\nuse-native-transport=true\nnetwork-compression-threshold=256\nmax-tick-time=-1\n")
+                }
+                val mem = srv.optInt("memoryMb", 2048)
+                val flags = appCtx.getSharedPreferences("app", 0)
+                    .getString("jvm_flags", DEFAULT_FLAGS) ?: DEFAULT_FLAGS
+
+                val proot = Container.prootBin(appCtx).absolutePath
+                val loader = File(appCtx.applicationInfo.nativeLibraryDir, "libprootloader.so").absolutePath
+                val rootfs = Store.rootfsDir().absolutePath
+                val cmd = listOf(
+                    proot,
+                    "-r", rootfs,
+                    "-0", "-w", "/sdcard" + dir.absolutePath.removePrefix("/storage/emulated/0"),
+                    "-b", "/dev", "-b", "/proc", "-b", "/sys",
+                    "-b", "/sdcard:/sdcard",
+                    "-b", "/storage/emulated/0:/storage/emulated/0",
+                    "--kill-on-exit",
+                    "/opt/jdk-$jv/bin/java", "-Xms${mem}M", "-Xmx${mem}M",
+                    "-Dfile.encoding=UTF-8", "-Dterminal.jline=false", "-Dterminal.ansi=true",
+                    "-Dlog4j2.formatMsgNoLookups=true"
+                ) + flags.split(Regex("\\s+")).filter { it.isNotBlank() } +
+                    listOf("-jar", "server.jar", "nogui")
+
+                emit("· 启动：Java $jv / ${mem}MB / ${srv.optString("core")} ${srv.optString("mcVersion")}")
+                synchronized(this) {
+                    val pb = ProcessBuilder(cmd)
+                    pb.redirectErrorStream(true)
+                    pb.environment()["HOME"] = "/root"
+                    pb.environment()["PATH"] = "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+                    pb.environment()["LANG"] = "C.UTF-8"
+                    pb.environment()["LC_ALL"] = "C.UTF-8"
+                    pb.environment()["TERM"] = "xterm-256color"
+                    pb.environment()["PROOT_TMP_DIR"] = Store.runDir.absolutePath
+                    pb.environment()["PROOT_LOADER"] = loader
+                    pb.environment()["PROOT_DONT_POLLUTE_ROOTFS"] = "1"
+                    pb.environment()["PROOT_NO_SECCOMP"] = "1"
+                    pb.environment()["LD_LIBRARY_PATH"] = appCtx.applicationInfo.nativeLibraryDir
+                    proc = pb.start()
+                    runningId = srv.optString("id")
+                    stdin = PrintWriter(proc!!.outputStream, true)
+                    UiBus.post()
+                }
+                cb("OK")
+                // 输出泵 + logs/console.log 镜像（参照物同款）
+                val logFile = File(dir, "logs/console.log").apply { parentFile?.mkdirs(); if (!exists()) writeText("") }
+                val logOut = java.io.BufferedWriter(java.io.OutputStreamWriter(java.io.FileOutputStream(logFile, true)))
+                val p = proc!!
+                val t = Thread {
+                    try {
+                        BufferedReader(InputStreamReader(p.inputStream, Charsets.UTF_8)).use { r ->
+                            while (true) {
+                                val l = r.readLine() ?: break
+                                emit(l)
+                                try { logOut.write(l); logOut.newLine(); logOut.flush() } catch (_: Exception) {}
+                            }
+                        }
+                    } catch (_: Exception) {}
+                    val code = try { p.waitFor(); p.exitValue() } catch (e: Exception) {
+                        try { p.destroyForcibly(); p.waitFor(5, java.util.concurrent.TimeUnit.SECONDS) } catch (_: Exception) {}
+                        -1
+                    }
+                    emit("· 进程已退出 exit=$code")
+                    UiBus.post()
+                    synchronized(this) {
+                        if (runningId == srv.optString("id")) {
+                            runningId = null; stdin = null; proc = null
+                            try { wakeLock?.takeIf { it.isHeld }?.release() } catch (_: Exception) {}
+                            wakeLock = null
+                        }
+                    }
+                }
+                t.isDaemon = true
+                t.start()
+                // 唤醒锁：防深睡
+                val pm = appCtx.getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
+                wakeLock = pm.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "MCFuwuqi:server")
+                wakeLock?.acquire()
+            } catch (e: Exception) {
+                emit("· 启动失败：${e.message}")
+                cb("ERR:${e.message}")
+            } finally {
+                starting = false
+            }
+        }.start()
+    }
+
+    fun send(cmd: String): Boolean {
+        val w = stdin ?: return false
+        w.println(cmd); return true
+    }
+
+    fun stop(): Boolean {
+        val ok = send("stop")
+        // 优雅停止给 4 秒，超时强杀（proot + java 一起收）
+        Thread {
+            val p = proc
+            if (p != null) {
+                try { p.waitFor(4, java.util.concurrent.TimeUnit.SECONDS) } catch (_: Exception) {}
+                if (p.isAlive) {
+                    try {
+                        p.destroy()
+                        p.waitFor(2, java.util.concurrent.TimeUnit.SECONDS)
+                    } catch (_: Exception) {}
+                    if (p.isAlive) p.destroyForcibly()
+                }
+                try { p.waitFor(3, java.util.concurrent.TimeUnit.SECONDS) } catch (_: Exception) {}
+            }
+        }.start()
+        return ok
+    }
+
+    const val DEFAULT_FLAGS =
+        "-XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 " +
+        "-XX:+UnlockExperimentalVMOptions -XX:+DisableExplicitGC -XX:+AlwaysPreTouch " +
+        "-XX:G1NewSizePercent=30 -XX:G1MaxNewSizePercent=40 -XX:G1HeapRegionSize=8M " +
+        "-XX:G1ReservePercent=20 -XX:InitiatingHeapOccupancyPercent=15 -XX:G1MixedGCCountTarget=32 " +
+        "-XX:SurvivorRatio=32 -XX:+PerfDisableSharedMem -XX:MaxTenuringThreshold=1 " +
+        "-Dusing.aikars.flags=https://mcflags.emc.gs -Daikars.new.flags=true"
+}
