@@ -81,14 +81,22 @@ object Container {
                 cb("下载 Java $v ${fmt(cur)}" + (if (tot > 0) " / ${fmt(tot)}" else ""))
             }
         } catch (e: Exception) {
-            cb("清华失败，尝试 Adoptium …")
+            // 清华失败 → 本仓库 jre-assets（Temurin 官方包镜像）
             try {
-                Dl.download(String.format(ADOPTIUM, v), tmp) { cur, tot ->
+                cb("清华失败，尝试本仓库 JRE 源 …")
+                Dl.download("https://github.com/likesugar/MC_fuwuqi/releases/download/jre-assets/$name", tmp) { cur, tot ->
                     cb("下载 Java $v ${fmt(cur)}" + (if (tot > 0) " / ${fmt(tot)}" else ""))
                 }
-            } catch (e2: Exception) {
-                Dl.download("https://gh-proxy.com/" + String.format(ADOPTIUM, v), tmp) { cur, tot ->
-                    cb("下载 Java $v ${fmt(cur)}" + (if (tot > 0) " / ${fmt(tot)}" else ""))
+            } catch (e3: Exception) {
+                cb("本仓库失败，尝试 Adoptium …")
+                try {
+                    Dl.download(String.format(ADOPTIUM, v), tmp) { cur, tot ->
+                        cb("下载 Java $v ${fmt(cur)}" + (if (tot > 0) " / ${fmt(tot)}" else ""))
+                    }
+                } catch (e2: Exception) {
+                    Dl.download("https://gh-proxy.com/" + String.format(ADOPTIUM, v), tmp) { cur, tot ->
+                        cb("下载 Java $v ${fmt(cur)}" + (if (tot > 0) " / ${fmt(tot)}" else ""))
+                    }
                 }
             }
         }
