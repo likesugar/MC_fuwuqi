@@ -11,11 +11,22 @@ android {
         applicationId = "com.mc.fuwuqi"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
+        versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
         versionName = "1.0"
     }
 
+    signingConfigs {
+        create("lime") {
+            storeFile = file("lime.keystore")
+            storePassword = "lime123456"
+            keyAlias = "lime"
+            keyPassword = "lime123456"
+        }
+    }
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("lime")
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true

@@ -72,18 +72,22 @@ object Container {
         val tmp = File(Store.runDir, "jdk$v.tar.gz")
         cb("下载 Java $v（约 45MB）…")
         // 1) 清华 JRE（45MB，优先） 2) Adoptium JRE 3) gh-proxy
-        var pkgName = ""
+        val repoNames = mapOf(
+            8 to "OpenJDK8U-jre_aarch64_linux_hotspot_8u504b01.tar.gz",
+            11 to "OpenJDK11U-jre_aarch64_linux_hotspot_11.0.32.1_1.tar.gz",
+            17 to "OpenJDK17U-jre_aarch64_linux_hotspot_17.0.20.1_1.tar.gz",
+            21 to "OpenJDK21U-jre_aarch64_linux_hotspot_21.0.12.1_1.tar.gz",
+            25 to "OpenJDK25U-jre_aarch64_linux_hotspot_25.0.4.1_1.tar.gz")
+        var pkgName = repoNames[v] ?: ""
         try {
             val html = Dl.fetchText(TUNA_DIR.format(v))
             val rx = Regex("OpenJDK${v}U-(?:jre|jdk)_aarch64_linux_hotspot_[0-9][0-9a-zA-Z._-]*\\.tar\\.gz")
-            pkgName = rx.findAll(html).map { it.value }.distinct().lastOrNull()
-                ?: throw RuntimeException("no pkg")
+            pkgName = rx.findAll(html).map { it.value }.distinct().lastOrNull() ?: pkgName
             Dl.download(TUNA_DIR.format(v) + pkgName, tmp) { cur, tot ->
                 cb("下载 Java $v ${fmt(cur)}" + (if (tot > 0) " / ${fmt(tot)}" else ""))
             }
         } catch (e: Exception) {
             // 清华失败 → 本仓库 jre-assets（Temurin 官方包镜像）
-            if (pkgName.isEmpty()) throw RuntimeException("清华列表不可用")
             try {
                 cb("清华失败，尝试本仓库 JRE 源 …")
                 Dl.download("https://github.com/likesugar/MC_fuwuqi/releases/download/jre-assets/$pkgName", tmp) { cur, tot ->
