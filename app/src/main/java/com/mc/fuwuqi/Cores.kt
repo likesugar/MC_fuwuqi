@@ -187,12 +187,7 @@ object Cores {
         cb("下载 Floodgate 插件 …")
         Dl.download("https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest/downloads/spigot", File(plugins, "Floodgate-Spigot.jar")) { _, _ -> }
         val auth = if (onlineMode) "floodgate" else "offline"
-        val online = if (onlineMode) "true" else "false"
-        val props = File(dir, "server.properties")
-        val lines = if (props.exists()) props.readLines().map { if (it.startsWith("online-mode=")) "online-mode=$online" else it }.toMutableList()
-        else mutableListOf("online-mode=$online")
-        if (lines.none { it.startsWith("online-mode=") }) lines.add(0, "online-mode=$online")
-        props.writeText(lines.joinToString("\n") + "\n")
+        // server.properties 由创建流程按用户配置写入（含 online-mode），这里只写 Geyser 的 config.yml
         File(gdir, "config.yml").writeText(
             "floodgate-key-file: \"./floodgate/key.pem\"\n" +
             "remote:\n  address: 127.0.0.1\n  port: 25565\n" +

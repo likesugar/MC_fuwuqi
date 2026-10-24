@@ -147,6 +147,20 @@ class NewServerActivity3 : androidx.appcompat.app.AppCompatActivity() {
                     if (core == Cores.CROSSPLAY) {
                         Cores.installCrossplayPlugins(dir, o.optBoolean("onlineMode", false)) { s -> runOnUiThread { go.text = s } }
                     }
+                    // 把第 3 步的用户配置写入 server.properties（内存等 JVM 参数在启动时另用）
+                    val propsFile = java.io.File(dir, "server.properties")
+                    val existing = if (propsFile.exists()) propsFile.readLines().toMutableList() else mutableListOf()
+                    val po = o.optJSONObject("props")
+                    if (po != null) {
+                        for (k in po.keys()) {
+                            val line = "$k=${po.optString(k)}"
+                            val idx = existing.indexOfFirst { it.startsWith("$k=") }
+                            if (idx >= 0) existing[idx] = line else existing.add(line)
+                        }
+                    }
+                    if (existing.none { it.startsWith("online-mode=") })
+                        existing.add(0, "online-mode=${o.optBoolean("onlineMode", false)}")
+                    propsFile.writeText(existing.joinToString("\n") + "\n")
                     runOnUiThread {
                         Ui.toast(this, "创建完成")
                         val i3 = Intent(this, ConsoleActivity::class.java).putExtra("id", o.optString("id"))
