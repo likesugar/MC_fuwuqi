@@ -114,7 +114,7 @@ class NewServerActivity : androidx.appcompat.app.AppCompatActivity() {
                 val paperOk = mutableSetOf<String>()
                 for (v in versions.take(8)) {
                     try {
-                        val b = tryFetch(listOf("https://fill.papermc.io/v3/projects/paper/versions/$v/builds"))
+                        val b = Dl.fetchText("https://fill.papermc.io/v3/projects/paper/versions/$v/builds")
                         if (b.contains("builds") && b.length > 60) paperOk.add(v)
                     } catch (_: Exception) {}
                 }
