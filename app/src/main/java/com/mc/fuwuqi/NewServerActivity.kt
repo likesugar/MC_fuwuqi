@@ -110,7 +110,16 @@ class NewServerActivity : androidx.appcompat.app.AppCompatActivity() {
         listWrap.addView(tip, tp)
         Thread {
             versions = try { Cores.list(core) } catch (e: Exception) { emptyList() }
-            if (core == Cores.CROSSPLAY) geyserSupported = try { Cores.geyserSupportedJava() } catch (e: Exception) { listOf("26.3") }
+            if (core == Cores.CROSSPLAY) {
+                val paperOk = mutableSetOf<String>()
+                for (v in versions.take(8)) {
+                    try {
+                        val b = tryFetch(listOf("https://fill.papermc.io/v3/projects/paper/versions/$v/builds"))
+                        if (b.contains("builds") && b.length > 60) paperOk.add(v)
+                    } catch (_: Exception) {}
+                }
+                geyserSupported = paperOk.toList()
+            }
             loading = false
             runOnUiThread { renderList() }
         }.start()
@@ -150,7 +159,7 @@ class NewServerActivity : androidx.appcompat.app.AppCompatActivity() {
             row.addView(badge)
             row.setOnClickListener {
                 if (isCross && !geyserOk.contains(v)) {
-                    Ui.toast(this, "官方口径：Geyser 仅支持 Java 26.3（Bedrock 26.30-26.52）。老版本服务器需另装 ViaVersion 才能互通；未来 Geyser 适配 $v 后自动转绿")
+                    Ui.toast(this, "互通服需要 Paper 内核，Paper 尚未发布 $v 的构建。请选绿灯版本（如 1.21.x）")
                     return@setOnClickListener
                 }
                 chosen = v; nextBtn.text = "下一步：命名并创建"; nextBtn.setBackgroundResource(R.drawable.bg_btn_green); renderList() }

@@ -156,7 +156,7 @@ class NewServerActivity3 : androidx.appcompat.app.AppCompatActivity() {
                 } catch (e: Exception) {
                     runOnUiThread {
                         go.isEnabled = true; go.text = "创 建"
-                        if (e.message?.contains("互通不支持") == true) {
+                        if (e.message?.contains("互通服需要 Paper") == true) {
                             androidx.appcompat.app.AlertDialog.Builder(this)
                                 .setTitle("无法创建互通服")
                                 .setMessage(e.message + "\n\n未来 Paper/Geyser 支持该版本后，即可正常创建。")
