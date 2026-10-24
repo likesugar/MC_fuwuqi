@@ -108,20 +108,7 @@ object Cores {
                     }
                 } catch (_: Exception) {}
                 if (l.isEmpty() && core == CROSSPLAY) {
-                    cb("Paper 查询失败，改用原版核心 …")
-                    val mf = JSONObject(tryFetch(listOf(MANIFEST_V2, MANIFEST_BMCL)))
-                    var vurl = ""
-                    val arr = mf.getJSONArray("versions")
-                    for (i in 0 until arr.length()) {
-                        val o = arr.getJSONObject(i)
-                        if (o.optString("id") == version) { vurl = o.optString("url"); break }
-                    }
-                    require(vurl.isNotEmpty()) { "未找到版本 $version" }
-                    val vj = JSONObject(tryFetch(listOf(vurl,
-                        vurl.replace("launchermeta.mojang.com", "bmclapi2.bangbang93.com")
-                            .replace("piston-meta.mojang.com", "bmclapi2.bangbang93.com"))))
-                    val du = vj.getJSONObject("downloads").getJSONObject("server").getString("url")
-                    listOf(du, du.replace("piston-data.mojang.com", "bmclapi2.bangbang93.com"))
+                    throw RuntimeException("Geyser latest 可能还不支持它，互通不支持 $version")
                 }
                 require(l.isNotEmpty()) { "Paper 构建查询失败" }
                 l
@@ -167,28 +154,7 @@ object Cores {
             } catch (e: Exception) { last = e }
         }
         if (core == CROSSPLAY && last != null) {
-            cb("Paper 构建查询失败，改用原版核心 …")
-            val mf = JSONObject(tryFetch(listOf(MANIFEST_V2, MANIFEST_BMCL)))
-            var vurl = ""
-            val arr = mf.getJSONArray("versions")
-            for (i in 0 until arr.length()) {
-                val o = arr.getJSONObject(i)
-                if (o.optString("id") == version) { vurl = o.optString("url"); break }
-            }
-            require(vurl.isNotEmpty()) { "未找到版本 $version" }
-            val vj = JSONObject(tryFetch(listOf(vurl,
-                vurl.replace("launchermeta.mojang.com", "bmclapi2.bangbang93.com")
-                    .replace("piston-meta.mojang.com", "bmclapi2.bangbang93.com"))))
-            val du = vj.getJSONObject("downloads").getJSONObject("server").getString("url")
-            val vurls = listOf(du, du.replace("piston-data.mojang.com", "bmclapi2.bangbang93.com"))
-            for (u in vurls) {
-                try {
-                    Dl.download(u, jar) { cur, tot ->
-                        cb("下载核心 ${Container.fmt(cur)}" + (if (tot > 0) " / ${Container.fmt(tot)}" else ""))
-                    }
-                    return jar
-                } catch (e: Exception) { last = e }
-            }
+            throw RuntimeException("Geyser latest 可能还不支持它，互通不支持 $version")
         }
         throw last ?: RuntimeException("核心下载失败")
     }
