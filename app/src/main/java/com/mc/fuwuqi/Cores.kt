@@ -130,7 +130,22 @@ object Cores {
                         if (u.isNotEmpty()) l.add(u)
                     }
                 } catch (_: Exception) {}
-                if (core == CROSSPLAY && l.isEmpty()) return@when emptyList()
+                if (l.isEmpty() && core == CROSSPLAY) {
+                    cb("Paper 查询失败，改用原版核心 …")
+                    val mf = JSONObject(tryFetch(listOf(MANIFEST_V2, MANIFEST_BMCL)))
+                    var vurl = ""
+                    val arr = mf.getJSONArray("versions")
+                    for (i in 0 until arr.length()) {
+                        val o = arr.getJSONObject(i)
+                        if (o.optString("id") == version) { vurl = o.optString("url"); break }
+                    }
+                    require(vurl.isNotEmpty()) { "未找到版本 $version" }
+                    val vj = JSONObject(tryFetch(listOf(vurl,
+                        vurl.replace("launchermeta.mojang.com", "bmclapi2.bangbang93.com")
+                            .replace("piston-meta.mojang.com", "bmclapi2.bangbang93.com"))))
+                    val du = vj.getJSONObject("downloads").getJSONObject("server").getString("url")
+                    return listOf(du, du.replace("piston-data.mojang.com", "bmclapi2.bangbang93.com"))
+                }
                 require(l.isNotEmpty()) { "Paper 构建查询失败" }
                 l
             }
