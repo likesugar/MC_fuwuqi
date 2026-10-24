@@ -16,29 +16,6 @@ object Cores {
         (0 until a.length()).map { a.getString(it) }
 
     private fun tryFetch(urls: List<String>): String {
-        if (core == CROSSPLAY && urls.isEmpty()) {
-            cb("Paper 查询失败，改用原版核心 …")
-            urls = when (core) {
-                else -> {
-                    cb("查询 Mojang $version …")
-                    val mf = JSONObject(tryFetch(listOf(MANIFEST_V2, MANIFEST_BMCL)))
-                    var vurl = ""
-                    val arr = mf.getJSONArray("versions")
-                    for (i in 0 until arr.length()) {
-                        val o = arr.getJSONObject(i)
-                        if (o.optString("id") == version) { vurl = o.optString("url"); break }
-                    }
-                    require(vurl.isNotEmpty()) { "未找到版本 $version" }
-                    val vj = JSONObject(tryFetch(listOf(vurl,
-                        vurl.replace("launchermeta.mojang.com", "bmclapi2.bangbang93.com")
-                            .replace("piston-meta.mojang.com", "bmclapi2.bangbang93.com"))))
-                    val du = vj.getJSONObject("downloads").getJSONObject("server").getString("url")
-                    listOf(du,
-                        du.replace("piston-data.mojang.com", "bmclapi2.bangbang93.com"),
-                        du.replace("launchermeta.mojang.com", "bmclapi2.bangbang93.com"))
-                }
-            }
-        }
         var last: Exception? = null
         for (u in urls) {
             try { return Dl.fetchText(u) } catch (e: Exception) { last = e }
