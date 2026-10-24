@@ -22,7 +22,7 @@ jobs:
       - name: Build debug APK
         run: ./gradle-8.11.1/bin/gradle :app:assembleRelease --no-daemon
       - name: Rename APK
-        run: mv app/build/outputs/apk/release/app-release.apk "MC-kai-fu-v1.0.apk"
+        run: mv app/build/outputs/apk/release/*.apk "MC-kai-fu-v1.0.apk"
       - name: Release APK
         env:
           GH_TOKEN: ${{ github.token }}
