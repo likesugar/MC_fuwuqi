@@ -129,19 +129,28 @@ class NewServerActivity : androidx.appcompat.app.AppCompatActivity() {
             listWrap.addView(t, tp)
             return
         }
+        // Geyser 已适配的 Java 版本（Geyser 仅支持其 master 对应的最新 Java 版；跟随 Geyser 更新此处）
+        val geyserOk = listOf("26.3")
         for (v in filtered) {
             val sel = v == chosen
             val row = Ui.linear(this, false)
             row.gravity = Gravity.CENTER_VERTICAL
             row.setBackgroundResource(if (sel) R.drawable.bg_tab_active else R.drawable.bg_card)
             row.setPadding(Ui.px(this, 18), Ui.px(this, 16), Ui.px(this, 18), Ui.px(this, 16))
-            row.addView(Ui.text(this, v, 19f, if (sel) getColor(R.color.green) else getColor(R.color.text), true), Ui.lp(0, -2, 1f))
+            val isCross = core == Cores.CROSSPLAY
+            val dot = if (!isCross || geyserOk.contains(v)) "🟢 " else "🔴 "
+            row.addView(Ui.text(this, dot + v, 19f, if (sel) getColor(R.color.green) else getColor(R.color.text), true), Ui.lp(0, -2, 1f))
             val jv = Container.javaForMc(v)
             val badge = Ui.text(this, "Java $jv", 14f, getColor(R.color.amber_text), true)
             badge.setBackgroundResource(R.drawable.bg_console)
             badge.setPadding(Ui.px(this, 12), Ui.px(this, 4), Ui.px(this, 12), Ui.px(this, 4))
             row.addView(badge)
-            row.setOnClickListener { chosen = v; nextBtn.text = "下一步：命名并创建"; nextBtn.setBackgroundResource(R.drawable.bg_btn_green); renderList() }
+            row.setOnClickListener {
+                if (isCross && !geyserOk.contains(v)) {
+                    Ui.toast(this, "Geyser latest 可能还不支持 $v，互通暂不支持；未来适配后即可创建")
+                    return@setOnClickListener
+                }
+                chosen = v; nextBtn.text = "下一步：命名并创建"; nextBtn.setBackgroundResource(R.drawable.bg_btn_green); renderList() }
             val p = Ui.lp(-1, -2); p.topMargin = Ui.px(this, 10)
             listWrap.addView(row, p)
         }
