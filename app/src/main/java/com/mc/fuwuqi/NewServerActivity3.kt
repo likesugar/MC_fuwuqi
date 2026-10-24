@@ -154,7 +154,19 @@ class NewServerActivity3 : androidx.appcompat.app.AppCompatActivity() {
                         finish()
                     }
                 } catch (e: Exception) {
-                    runOnUiThread { go.isEnabled = true; go.text = "重试：${e.message}" }
+                    runOnUiThread {
+                        go.isEnabled = true; go.text = "创 建"
+                        if (e.message?.contains("互通不支持") == true) {
+                            androidx.appcompat.app.AlertDialog.Builder(this)
+                                .setTitle("无法创建互通服")
+                                .setMessage(e.message)
+                                .setCancelable(false)
+                                .setPositiveButton("确认") { _, _ -> finish() }
+                                .show()
+                        } else {
+                            go.text = "重试：${e.message}"
+                        }
+                    }
                 }
             }.start()
         }
