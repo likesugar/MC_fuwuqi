@@ -121,7 +121,7 @@ object Cores {
                         vurl.replace("launchermeta.mojang.com", "bmclapi2.bangbang93.com")
                             .replace("piston-meta.mojang.com", "bmclapi2.bangbang93.com"))))
                     val du = vj.getJSONObject("downloads").getJSONObject("server").getString("url")
-                    return listOf(du, du.replace("piston-data.mojang.com", "bmclapi2.bangbang93.com"))
+                    listOf(du, du.replace("piston-data.mojang.com", "bmclapi2.bangbang93.com"))
                 }
                 require(l.isNotEmpty()) { "Paper 构建查询失败" }
                 l
