@@ -159,6 +159,15 @@ object Cores {
         throw last ?: RuntimeException("核心下载失败")
     }
 
+    /** 动态查询 Geyser master 支持的 Java 版本（来自 MCProtocolLib 源码，发新 build 适配后自动更新） */
+    fun geyserSupportedJava(): List<String> = try {
+        val src = tryFetch(listOf(
+            "https://gh-proxy.com/https://raw.githubusercontent.com/GeyserMC/MCProtocolLib/master/protocol/src/main/java/org/geysermc/mcprotocollib/protocol/codec/MinecraftCodec.java",
+            "https://raw.githubusercontent.com/GeyserMC/MCProtocolLib/master/protocol/src/main/java/org/geysermc/mcprotocollib/protocol/codec/MinecraftCodec.java"))
+        val all = Regex("minecraftVersion\\(\"([^\"]+)\"\\)").findAll(src).toList()
+        listOf(all.last().groupValues[1])
+    } catch (e: Exception) { listOf("26.3") }
+
     /** 互通服：下载 Geyser + Floodgate 插件并写配置（onlineMode=true 走 Xbox 验证可公开） */
     fun installCrossplayPlugins(dir: File, onlineMode: Boolean, cb: (String) -> Unit) {
         val plugins = File(dir, "plugins").apply { mkdirs() }

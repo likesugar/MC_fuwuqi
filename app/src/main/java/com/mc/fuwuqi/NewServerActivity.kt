@@ -110,10 +110,13 @@ class NewServerActivity : androidx.appcompat.app.AppCompatActivity() {
         listWrap.addView(tip, tp)
         Thread {
             versions = try { Cores.list(core) } catch (e: Exception) { emptyList() }
+            if (core == Cores.CROSSPLAY) geyserSupported = try { Cores.geyserSupportedJava() } catch (e: Exception) { listOf("26.3") }
             loading = false
             runOnUiThread { renderList() }
         }.start()
     }
+
+    private var geyserSupported: List<String> = listOf("26.3")
 
     private fun renderList() {
         if (loading) return
@@ -130,7 +133,7 @@ class NewServerActivity : androidx.appcompat.app.AppCompatActivity() {
             return
         }
         // Geyser 已适配的 Java 版本（Geyser 仅支持其 master 对应的最新 Java 版；跟随 Geyser 更新此处）
-        val geyserOk = listOf("26.3")
+        val geyserOk = geyserSupported
         for (v in filtered) {
             val sel = v == chosen
             val row = Ui.linear(this, false)
