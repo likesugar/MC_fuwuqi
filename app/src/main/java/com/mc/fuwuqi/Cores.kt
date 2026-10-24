@@ -101,10 +101,23 @@ object Cores {
                     val v3 = tryFetch(listOf(
                         "https://fill.papermc.io/v3/projects/paper/versions/$version/builds/latest"))
                     val o = JSONObject(v3)
-                    val dl = o.optJSONArray("downloads")
+                    val dl = o.optJSONObject("downloads")
                     if (dl != null) {
-                        val u = dl.optJSONObject(0)?.optString("url") ?: ""
+                        // fill v3 结构：downloads = { "server:default": { url, sha256, ... } }
+                        val u = dl.optJSONObject("server:default")?.optString("url")
+                            ?: dl.optJSONObject(dl.keys().next())?.optString("url") ?: ""
                         if (u.isNotEmpty()) l.add(u)
+                    }
+                } catch (_: Exception) {}
+                // 兜底：fill v2 API
+                try {
+                    if (l.isEmpty()) {
+                        val b = JSONObject(tryFetch(listOf(
+                            "https://fill.papermc.io/v3/projects/paper/versions/$version/builds")))
+                        val arr = b.getJSONArray("builds")
+                        val last = arr.getJSONObject(0)
+                        val u2 = last.getJSONObject("downloads").getJSONObject("server:default").getString("url")
+                        if (u2.isNotEmpty()) l.add(u2)
                     }
                 } catch (_: Exception) {}
                 if (l.isEmpty() && core == CROSSPLAY) {
