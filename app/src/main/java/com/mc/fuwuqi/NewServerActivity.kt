@@ -87,16 +87,16 @@ class NewServerActivity : androidx.appcompat.app.AppCompatActivity() {
             c.gravity = Gravity.CENTER_HORIZONTAL
             c.setBackgroundResource(if (sel) R.drawable.bg_tab_active else R.drawable.bg_card)
             c.setPadding(Ui.px(this, 14), Ui.px(this, 14), Ui.px(this, 14), Ui.px(this, 14))
-            val t1 = Ui.text(this, name.first, 15f, if (sel) getColor(R.color.green) else getColor(R.color.text), true)
+            val t1 = Ui.text(this, name.first, 13.5f, if (sel) getColor(R.color.green) else getColor(R.color.text), true)
             t1.setSingleLine(true); t1.ellipsize = null
             c.addView(t1)
-            val sub = Ui.text(this, name.second, 11f, getColor(R.color.text_sub))
+            val sub = Ui.text(this, name.second.replace(" 📱",""), 10.5f, getColor(R.color.text_sub))
             sub.setSingleLine(true)
             sub.setPadding(0, Ui.px(this, 3), 0, 0)
             c.addView(sub)
             val lp = Ui.lp(0, -2, 1f)
             c.setOnClickListener { if (!loading && core != name.first) { core = name.first; chosen = null; buildChips(); load() } }
-            val p = lp; p.width = Ui.px(this, 104); p.rightMargin = Ui.px(this, 10)
+            val p = lp; p.width = Ui.px(this, 96); p.rightMargin = Ui.px(this, 8)
             chips.addView(c, p)
         }
     }
