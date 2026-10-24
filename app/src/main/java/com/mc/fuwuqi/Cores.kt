@@ -152,7 +152,6 @@ object Cores {
         }
         throw last ?: RuntimeException("核心下载失败")
     }
-}
 
     /** 互通服：下载 Geyser + Floodgate 插件并写配置（onlineMode=true 走 Xbox 验证可公开） */
     fun installCrossplayPlugins(dir: File, onlineMode: Boolean, cb: (String) -> Unit) {
@@ -176,3 +175,5 @@ object Cores {
             "auth-type: $auth\n")
         cb("互通插件安装完成")
     }
+
+}
