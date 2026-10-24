@@ -112,7 +112,7 @@ class NewServerActivity : androidx.appcompat.app.AppCompatActivity() {
             versions = try { Cores.list(core) } catch (e: Exception) { emptyList() }
             if (core == Cores.CROSSPLAY) {
                 // fill-ui 列表里的版本全部可下载（fill v3），全部绿灯
-                geyserSupported = versions.toSet()
+                geyserSupported = versions
             }
             loading = false
             runOnUiThread { renderList() }
