@@ -173,7 +173,10 @@ object Cores {
             "remote:\n  address: 127.0.0.1\n  port: 25565\n" +
             "bedrock:\n  port: 19132\n" +
             "auth-type: $auth\n")
-        cb("互通插件安装完成")
+        cb(if (onlineMode)
+            "互通插件安装完成：基岩玩家需 Xbox 验证（名字带 . 前缀），可公开 IP"
+        else
+            "互通插件安装完成：离线模式，任何人可直接进，严禁公开 IP")
     }
 
 }

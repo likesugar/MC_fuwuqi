@@ -44,6 +44,13 @@ class NewServerActivity3 : androidx.appcompat.app.AppCompatActivity() {
         values["server-port"] = port.toString()
         values["online-mode"] = "false"
         values["enforce-secure-profile"] = "false"
+        if (core == Cores.CROSSPLAY) {
+            root.addView(Ui.text(this,
+                "📱 互通服提示：基岩版（手机）玩家连接端口 19132。\n" +
+                "· 正版模式：基岩玩家需 Xbox 账号验证，进服名字会带 \".\" 前缀，可公开 IP\n" +
+                "· 离线模式：任何人可直接进，仅限熟人使用，严禁公开 IP", 12.5f, getColor(R.color.text_sub)))
+            (root.getChildAt(root.childCount - 1) as TextView).setPadding(Ui.px(this, 20), Ui.px(this, 10), Ui.px(this, 20), Ui.px(this, 4))
+        }
         values["difficulty"] = difficulty
         values["gamemode"] = gamemode
         values["max-players"] = maxPlayers.toString()
