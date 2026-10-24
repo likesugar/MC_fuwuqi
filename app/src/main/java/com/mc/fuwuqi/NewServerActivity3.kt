@@ -159,7 +159,7 @@ class NewServerActivity3 : androidx.appcompat.app.AppCompatActivity() {
                         if (e.message?.contains("互通不支持") == true) {
                             androidx.appcompat.app.AlertDialog.Builder(this)
                                 .setTitle("无法创建互通服")
-                                .setMessage(e.message)
+                                .setMessage(e.message + "\n\n未来 Paper/Geyser 支持该版本后，即可正常创建。")
                                 .setCancelable(false)
                                 .setPositiveButton("确认") { _, _ -> finish() }
                                 .show()
