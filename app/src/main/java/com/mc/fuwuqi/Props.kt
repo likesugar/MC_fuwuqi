@@ -49,7 +49,7 @@ val SPEC_NET = listOf(
     F("network-compression-threshold", "网络压缩阈值", "超过多少字节的数据包才压缩，-1 关闭。手机建议 256", "text", "256"),
 )
 val SPEC_PERF = listOf(
-    F("view-distance", "视距（区块）", "玩家能看到多远。手机建议 4~6，调到 10 以上会明显卡顿", "text", "6"),
+    F("view-distance", "视距（区块）", "玩家能看到多远。手机建议 4~6，调到 10 以上会明显卡顿", "text", "4"),
     F("simulation-distance", "模拟距离（区块）", "怪物、作物、红石的活动范围。手机建议 4，最低 3", "text", "4"),
     F("sync-chunk-writes", "同步区块写入", "关闭可以提升性能，但突然断电可能损坏存档", "bool"),
     F("use-native-transport", "使用原生传输", "Linux 下的网络优化，建议开启", "bool", "true"),

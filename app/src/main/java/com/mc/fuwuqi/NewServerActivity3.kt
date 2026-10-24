@@ -44,7 +44,31 @@ class NewServerActivity3 : androidx.appcompat.app.AppCompatActivity() {
         values["server-port"] = port.toString()
         values["online-mode"] = "false"
         values["enforce-secure-profile"] = "false"
+        values["view-distance"] = "4"
         if (core == Cores.CROSSPLAY) {
+            // 显式模式选择按钮（正主/离线），写 values["online-mode"]
+            val modeRow = android.widget.LinearLayout(this)
+            modeRow.orientation = android.widget.LinearLayout.HORIZONTAL
+            modeRow.gravity = Gravity.CENTER
+            modeRow.setPadding(0, Ui.px(this, 4), 0, Ui.px(this, 8))
+            fun modeBtn(label: String, online: Boolean): TextView {
+                val t = TextView(this); t.text = label; t.tag = online
+                t.gravity = Gravity.CENTER; t.setPadding(Ui.px(this,18), Ui.px(this,10), Ui.px(this,18), Ui.px(this,10))
+                return t }
+            val bOff = modeBtn("⚪ 离线模式", false)
+            val bOn = modeBtn("🟢 正版模式", true)
+            fun refreshMode(){ val online = values["online-mode"]=="true"
+                for (b in listOf(bOff,bOn)) { val on = (b.tag as Boolean)==online
+                    b.setTextColor(if (on) Color.WHITE else getColor(R.color.text))
+                    b.setBackgroundResource(if (on) R.drawable.bg_btn_green else R.drawable.bg_card) } }
+            bOff.setOnClickListener { values["online-mode"]="false"; refreshMode() }
+            bOn.setOnClickListener { values["online-mode"]="true"; refreshMode() }
+            modeRow.addView(bOff); modeRow.addView(bOn)
+            val modeParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
+            modeParams.setMargins(Ui.px(this,20), 0, Ui.px(this,20), Ui.px(this,4))
+            root.addView(modeRow, root.indexOfChild(root.getChildAt(root.childCount-1)))
+            refreshMode()
             root.addView(Ui.text(this,
                 "📱 互通服提示：基岩版（手机）玩家连接端口 19132。\n" +
                 "· 正版模式：基岩玩家需 Xbox 账号验证，进服名字会带 \".\" 前缀，可公开 IP\n" +

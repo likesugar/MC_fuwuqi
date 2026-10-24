@@ -93,7 +93,7 @@ class NewServerActivity : androidx.appcompat.app.AppCompatActivity() {
             c.addView(sub)
             val lp = Ui.lp(0, -2, 1f)
             c.setOnClickListener { if (!loading && core != name.first) { core = name.first; chosen = null; buildChips(); load() } }
-            val p = lp; p.rightMargin = Ui.px(this, 10)
+            val p = lp; p.width = Ui.px(this, 92); p.rightMargin = Ui.px(this, 10)
             chips.addView(c, p)
         }
     }

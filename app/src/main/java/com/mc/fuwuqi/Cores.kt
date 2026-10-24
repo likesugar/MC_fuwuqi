@@ -7,7 +7,7 @@ import java.io.File
 /** 服务器核心下载：Paper / Purpur / Vanilla（多源兜底，国内可达优先） */
 object Cores {
 
-    const val PAPER = "Paper"; const val PURPUR = "Purpur"; const val VANILLA = "Vanilla"; const val CROSSPLAY = "互通服 Paper"
+    const val PAPER = "Paper"; const val PURPUR = "Purpur"; const val VANILLA = "Vanilla"; const val CROSSPLAY = "互通服"
 
     const val MANIFEST_V2 = "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json"
     const val MANIFEST_BMCL = "https://bmclapi2.bangbang93.com/version_manifest_v2.json"
@@ -16,6 +16,29 @@ object Cores {
         (0 until a.length()).map { a.getString(it) }
 
     private fun tryFetch(urls: List<String>): String {
+        if (core == CROSSPLAY && urls.isEmpty()) {
+            cb("Paper 查询失败，改用原版核心 …")
+            urls = when (core) {
+                else -> {
+                    cb("查询 Mojang $version …")
+                    val mf = JSONObject(tryFetch(listOf(MANIFEST_V2, MANIFEST_BMCL)))
+                    var vurl = ""
+                    val arr = mf.getJSONArray("versions")
+                    for (i in 0 until arr.length()) {
+                        val o = arr.getJSONObject(i)
+                        if (o.optString("id") == version) { vurl = o.optString("url"); break }
+                    }
+                    require(vurl.isNotEmpty()) { "未找到版本 $version" }
+                    val vj = JSONObject(tryFetch(listOf(vurl,
+                        vurl.replace("launchermeta.mojang.com", "bmclapi2.bangbang93.com")
+                            .replace("piston-meta.mojang.com", "bmclapi2.bangbang93.com"))))
+                    val du = vj.getJSONObject("downloads").getJSONObject("server").getString("url")
+                    listOf(du,
+                        du.replace("piston-data.mojang.com", "bmclapi2.bangbang93.com"),
+                        du.replace("launchermeta.mojang.com", "bmclapi2.bangbang93.com"))
+                }
+            }
+        }
         var last: Exception? = null
         for (u in urls) {
             try { return Dl.fetchText(u) } catch (e: Exception) { last = e }
@@ -74,7 +97,7 @@ object Cores {
     } catch (e: Exception) { emptyList() }
 
     fun list(core: String): List<String> = when (core) {
-        PAPER, CROSSPLAY -> paperVersions()
+        PAPER, CROSSPLAY -> paperVersions().asReversed()
         PURPUR -> purpurVersions()
         else -> vanillaVersions()
     }
@@ -83,7 +106,7 @@ object Cores {
     fun download(core: String, version: String, dir: File, cb: (String) -> Unit): File {
         dir.mkdirs()
         val jar = File(dir, "server.jar")
-        val urls: List<String> = when (core) {
+        var urls: List<String> = when (core) {
             PAPER, CROSSPLAY -> {
                 cb("查询 Paper $version 构建号 …")
                 val l = mutableListOf<String>()
@@ -107,6 +130,7 @@ object Cores {
                         if (u.isNotEmpty()) l.add(u)
                     }
                 } catch (_: Exception) {}
+                if (core == CROSSPLAY && l.isEmpty()) return@when emptyList()
                 require(l.isNotEmpty()) { "Paper 构建查询失败" }
                 l
             }
