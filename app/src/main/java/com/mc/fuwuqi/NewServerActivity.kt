@@ -111,14 +111,8 @@ class NewServerActivity : androidx.appcompat.app.AppCompatActivity() {
         Thread {
             versions = try { Cores.list(core) } catch (e: Exception) { emptyList() }
             if (core == Cores.CROSSPLAY) {
-                val paperOk = mutableSetOf<String>()
-                for (v in versions.take(8)) {
-                    try {
-                        val b = Dl.fetchText("https://fill.papermc.io/v3/projects/paper/versions/$v/builds")
-                        if (b.contains("builds") && b.length > 60) paperOk.add(v)
-                    } catch (_: Exception) {}
-                }
-                geyserSupported = paperOk.toList()
+                // fill-ui 列表里的版本全部可下载（fill v3），全部绿灯
+                geyserSupported = versions.toSet()
             }
             loading = false
             runOnUiThread { renderList() }
