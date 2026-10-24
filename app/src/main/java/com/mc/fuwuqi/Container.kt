@@ -78,7 +78,7 @@ object Container {
             val rx = Regex("OpenJDK${v}U-(?:jre|jdk)_aarch64_linux_hotspot_[0-9][0-9a-zA-Z._-]*\\.tar\\.gz")
             pkgName = rx.findAll(html).map { it.value }.distinct().lastOrNull()
                 ?: throw RuntimeException("no pkg")
-            Dl.download(TUNA_DIR.format(v) + name, tmp) { cur, tot ->
+            Dl.download(TUNA_DIR.format(v) + pkgName, tmp) { cur, tot ->
                 cb("下载 Java $v ${fmt(cur)}" + (if (tot > 0) " / ${fmt(tot)}" else ""))
             }
         } catch (e: Exception) {
