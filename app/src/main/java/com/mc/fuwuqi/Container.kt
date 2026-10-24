@@ -90,8 +90,15 @@ object Container {
             // 清华失败 → 本仓库 jre-assets（Temurin 官方包镜像）
             try {
                 cb("清华失败，尝试本仓库 JRE 源 …")
-                Dl.download("https://github.com/likesugar/MC_fuwuqi/releases/download/jre-assets/$pkgName", tmp) { cur, tot ->
-                    cb("下载 Java $v ${fmt(cur)}" + (if (tot > 0) " / ${fmt(tot)}" else ""))
+                try {
+                    Dl.download("https://gh-proxy.com/https://github.com/likesugar/MC_fuwuqi/releases/download/jre-assets/$pkgName", tmp) { cur, tot ->
+                        cb("下载 Java $v ${fmt(cur)}" + (if (tot > 0) " / ${fmt(tot)}" else ""))
+                    }
+                } catch (e4: Exception) {
+                    cb("代理失败，尝试直连 …")
+                    Dl.download("https://github.com/likesugar/MC_fuwuqi/releases/download/jre-assets/$pkgName", tmp) { cur, tot ->
+                        cb("下载 Java $v ${fmt(cur)}" + (if (tot > 0) " / ${fmt(tot)}" else ""))
+                    }
                 }
             } catch (e3: Exception) {
                 cb("本仓库失败，尝试 Adoptium …")
