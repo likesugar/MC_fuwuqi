@@ -81,7 +81,7 @@ class NewServerActivity : androidx.appcompat.app.AppCompatActivity() {
 
     private fun buildChips() {
         chips.removeAllViews()
-        for (name in listOf(Cores.PAPER to "插件服", Cores.PURPUR to "插件服", Cores.VANILLA to "纯净服")) {
+        for (name in listOf(Cores.PAPER to "插件服", Cores.PURPUR to "插件服", Cores.VANILLA to "纯净服", Cores.CROSSPLAY to "手机互通 📱")) {
             val sel = name.first == core
             val c = Ui.linear(this, true)
             c.gravity = Gravity.CENTER_HORIZONTAL

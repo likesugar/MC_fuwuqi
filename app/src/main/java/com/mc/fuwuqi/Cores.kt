@@ -7,7 +7,7 @@ import java.io.File
 /** 服务器核心下载：Paper / Purpur / Vanilla（多源兜底，国内可达优先） */
 object Cores {
 
-    const val PAPER = "Paper"; const val PURPUR = "Purpur"; const val VANILLA = "Vanilla"
+    const val PAPER = "Paper"; const val PURPUR = "Purpur"; const val VANILLA = "Vanilla"; const val CROSSPLAY = "互通服 Paper"
 
     const val MANIFEST_V2 = "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json"
     const val MANIFEST_BMCL = "https://bmclapi2.bangbang93.com/version_manifest_v2.json"
@@ -74,7 +74,7 @@ object Cores {
     } catch (e: Exception) { emptyList() }
 
     fun list(core: String): List<String> = when (core) {
-        PAPER -> paperVersions()
+        PAPER, CROSSPLAY -> paperVersions()
         PURPUR -> purpurVersions()
         else -> vanillaVersions()
     }
@@ -84,7 +84,7 @@ object Cores {
         dir.mkdirs()
         val jar = File(dir, "server.jar")
         val urls: List<String> = when (core) {
-            PAPER -> {
+            PAPER, CROSSPLAY -> {
                 cb("查询 Paper $version 构建号 …")
                 val l = mutableListOf<String>()
                 // 1) v2 API
@@ -153,3 +153,26 @@ object Cores {
         throw last ?: RuntimeException("核心下载失败")
     }
 }
+
+    /** 互通服：下载 Geyser + Floodgate 插件并写配置（onlineMode=true 走 Xbox 验证可公开） */
+    fun installCrossplayPlugins(dir: File, onlineMode: Boolean, cb: (String) -> Unit) {
+        val plugins = File(dir, "plugins").apply { mkdirs() }
+        val gdir = File(plugins, "Geyser-Spigot").apply { mkdirs() }
+        cb("下载 Geyser 互通插件 …")
+        Dl.download("https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/spigot", File(plugins, "Geyser-Spigot.jar")) { _, _ -> }
+        cb("下载 Floodgate 插件 …")
+        Dl.download("https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest/downloads/spigot", File(plugins, "Floodgate-Spigot.jar")) { _, _ -> }
+        val auth = if (onlineMode) "floodgate" else "offline"
+        val online = if (onlineMode) "true" else "false"
+        val props = File(dir, "server.properties")
+        val lines = if (props.exists()) props.readLines().map { if (it.startsWith("online-mode=")) "online-mode=$online" else it }.toMutableList()
+        else mutableListOf("online-mode=$online")
+        if (lines.none { it.startsWith("online-mode=") }) lines.add(0, "online-mode=$online")
+        props.writeText(lines.joinToString("\n") + "\n")
+        File(gdir, "config.yml").writeText(
+            "floodgate-key-file: \"./floodgate/key.pem\"\n" +
+            "remote:\n  address: 127.0.0.1\n  port: 25565\n" +
+            "bedrock:\n  port: 19132\n" +
+            "auth-type: $auth\n")
+        cb("互通插件安装完成")
+    }

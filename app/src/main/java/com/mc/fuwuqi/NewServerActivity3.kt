@@ -113,6 +113,9 @@ class NewServerActivity3 : androidx.appcompat.app.AppCompatActivity() {
                     val arr = Store.loadServers(); arr.put(o); Store.saveServers(arr)
                     val dir = Store.serverDir(o.optString("id")); dir.mkdirs()
                     Cores.download(core, version, dir) { s -> runOnUiThread { go.text = s } }
+                    if (core == Cores.CROSSPLAY) {
+                        Cores.installCrossplayPlugins(dir, o.optBoolean("onlineMode", false)) { s -> runOnUiThread { go.text = s } }
+                    }
                     runOnUiThread {
                         Ui.toast(this, "创建完成")
                         val i3 = Intent(this, ConsoleActivity::class.java).putExtra("id", o.optString("id"))
