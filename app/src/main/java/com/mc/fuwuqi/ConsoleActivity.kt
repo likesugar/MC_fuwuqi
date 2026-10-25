@@ -3,6 +3,7 @@ package com.mc.fuwuqi
 import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
@@ -40,6 +41,13 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
                 render()
             }
             appendColored(line, lineColor(line))
+            // 玩家进出 → 系统通知（APP 在后台也能收到）
+            Regex("([A-Za-z0-9_.\\-]{2,16}) joined the game").find(line)?.let { m ->
+                notifyPlayer(m.groupValues[1].trim(), true)
+            }
+            Regex("([A-Za-z0-9_.\\-]{2,16}) left the game").find(line)?.let { m ->
+                notifyPlayer(m.groupValues[1].trim(), false)
+            }
             if (following) logScroll.post { logScroll.fullScroll(ScrollView.FOCUS_DOWN) }
         }
     }
@@ -201,6 +209,17 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
 
     override fun onResume() { super.onResume(); render(); UiBus.subscribe { runOnUiThread { render() } } }
     override fun onPause() { super.onPause(); UiBus.unsubscribe { render() } }
+
+    private fun notifyPlayer(name: String, joined: Boolean) {
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.createNotificationChannel(NotificationChannel("player", "玩家进出", NotificationManager.IMPORTANCE_DEFAULT))
+        val b = Notification.Builder(this, "player")
+            .setSmallIcon(android.R.drawable.ic_menu_myplaces)
+            .setContentTitle(if (joined) "👋 玩家进入" else "👋 玩家离开")
+            .setContentText(if (joined) "$name 加入了服务器" else "$name 离开了服务器")
+            .setAutoCancel(true)
+        nm.notify(name.hashCode(), b.build())
+    }
 
     private fun lineColor(line: String): Int = when {
         line.contains("ERROR") || line.contains("Exception") || line.contains("FATAL") -> 0xFFC0392B.toInt()
