@@ -47,6 +47,7 @@ object ServerManager {
 
     fun consoleText(): String = synchronized(buf) { buf.toString() }
 
+    fun logLine(s: String) { emit(s) }
     fun isRunning(id: String): Boolean = runningId == id && proc?.isAlive == true
 
     fun localIp(): String = try {
@@ -214,8 +215,8 @@ object ServerManager {
                 out.listFiles()?.filter { it.name.startsWith("$id-") }?.sortedBy { it.name }?.let { list ->
                     if (list.size > KEEP) list.take(list.size - KEEP).forEach { it.delete() }
                 }
-                onLine("已自动备份：${f.name}")
-            } catch (e: Exception) { onLine("自动备份失败：${e.message}") }
+                logLine("已自动备份：${f.name}")
+            } catch (e: Exception) { logLine("自动备份失败：${e.message}") }
         }.start()
     }
 
