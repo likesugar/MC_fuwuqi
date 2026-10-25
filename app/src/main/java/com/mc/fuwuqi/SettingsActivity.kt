@@ -195,6 +195,37 @@ class SettingsActivity : androidx.appcompat.app.AppCompatActivity() {
         ac.addView(saveFlag)
         listWrap.addView(ac, Ui.lp(-1, -2).also { it.topMargin = Ui.px(this, 4) })
 
+        // 性能（12/5）
+        listWrap.addView(section("性能"))
+        val pc = Ui.card(this)
+        pc.setPadding(Ui.px(this, 18), Ui.px(this, 14), Ui.px(this, 18), Ui.px(this, 16))
+        pc.addView(Ui.text(this, "电池优化豁免", 16f, getColor(R.color.text), true))
+        pc.addView(Ui.text(this, "省电策略会限制 CPU 频率、冻结后台进程，导致 TPS 掉帧/服务器被杀。加入白名单后开服更稳。", 12f, getColor(R.color.text_sub)).also {
+            it.setPadding(0, Ui.px(this, 4), 0, 0)
+        })
+        val batBtn = Ui.text(this, "申请忽略电池优化", 15f, getColor(R.color.green), true)
+        batBtn.setPadding(0, Ui.px(this, 10), 0, 0)
+        val pm = getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
+        fun refreshBat() {
+            val ign = pm.isIgnoringBatteryOptimizations(packageName)
+            batBtn.text = if (ign) "✓ 已忽略电池优化" else "申请忽略电池优化"
+        }
+        refreshBat()
+        batBtn.setOnClickListener {
+            if (pm.isIgnoringBatteryOptimizations(packageName)) {
+                Ui.toast(this, "已经在白名单里了")
+            } else {
+                try {
+                    startActivity(android.content.Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                        android.net.Uri.parse("package:$packageName")))
+                } catch (e: Exception) {
+                    try { startActivity(android.content.Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) } catch (_: Exception) {}
+                }
+            }
+        }
+        pc.addView(batBtn)
+        listWrap.addView(pc, Ui.lp(-1, -2).also { it.topMargin = Ui.px(this, 4) })
+
         // 工具
         listWrap.addView(section("工具"))
         val tc = Ui.card(this)

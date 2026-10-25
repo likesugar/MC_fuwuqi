@@ -33,6 +33,9 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
     private lateinit var input: EditText
     private lateinit var quick: LinearLayout
     private var following = false
+    private lateinit var perfText: TextView
+    private lateinit var perfHandler: android.os.Handler
+    private lateinit var perfTick: Runnable
     private var readyNotified = false
 
     private val lineCb: (String) -> Unit = { line ->
@@ -147,6 +150,39 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
         val hint = Ui.text(this, "同一 WiFi 下，朋友在「多人游戏 → 直接连接」输入上面地址即可。端口不通时先看日志有没有 Done。", 12f, getColor(R.color.text_sub))
         hint.setPadding(Ui.px(this, 24), Ui.px(this, 10), Ui.px(this, 24), 0)
         root.addView(hint)
+
+        // 性能面板（12/5）：CPU / 内存 实时
+        perfText = Ui.text(this, "", 12f, getColor(R.color.text_sub))
+        perfText.setPadding(Ui.px(this, 24), Ui.px(this, 6), Ui.px(this, 24), 0)
+        root.addView(perfText)
+        perfHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        perfTick = object : Runnable {
+            var lastJf = 0L; var lastSys = 0L
+            override fun run() {
+                val pid = ServerManager.serverPid()
+                if (pid == null) { perfText.text = ""; lastJf = 0; lastSys = 0 }
+                else {
+                    try {
+                        val st = java.io.File("/proc/$pid/stat").readText()
+                        val parts = st.substring(st.lastIndexOf(')') + 2).split(" ")
+                        val utime = parts[11].toLong(); val stime = parts[12].toLong()
+                        val rssKb = parts[21].toLong() * 4L
+                        val sysStat = java.io.File("/proc/stat").readText().split("\n")[0].split(Regex("\\s+"))
+                        var idle = 0L; var total = 0L
+                        for (i in 1 until sysStat.size) { val v = sysStat[i].toLongOrNull() ?: 0L; total += v; if (i == 4 || i == 5) idle += v }
+                        val jf = utime + stime
+                        val cpu = if (lastJf > 0 && total > lastSys) {
+                            val pct = (jf - lastJf) * 100 / (total - lastSys)
+                            "$pct%"
+                        } else "…"
+                        lastJf = jf; lastSys = total
+                        perfText.text = "CPU $cpu · 内存 ${rssKb / 1024}MB"
+                    } catch (_: Exception) { perfText.text = "" }
+                }
+                perfHandler.postDelayed(this, 2000)
+            }
+        }
+        perfHandler.post(perfTick)
 
         // 日志
         logView = TextView(this)
@@ -382,6 +418,7 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        if (this::perfHandler.isInitialized) perfHandler.removeCallbacksAndMessages(null)
         super.onDestroy()
         ServerManager.offLine(lineCb)
         UiBus.unsubscribe { render() }

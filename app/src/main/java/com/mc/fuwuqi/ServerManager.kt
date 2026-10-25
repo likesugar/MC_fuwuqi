@@ -51,6 +51,7 @@ object ServerManager {
     fun consoleText(): String = synchronized(buf) { buf.toString() }
 
     fun logLine(s: String) { emit(s) }
+    fun serverPid(): Int? = try { proc?.pid()?.takeIf { it > 0 } } catch (_: Exception) { null }
 
     private fun notifyCrash(ctx: android.content.Context?, restarting: Boolean) {
         try {
