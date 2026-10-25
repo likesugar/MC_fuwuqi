@@ -194,8 +194,6 @@ object ServerManager {
     }
 
     // ---------- 自动备份（7/5） ----------
-    private val backupHandler = android.os.Handler(android.os.Looper.getMainLooper())
-    private val KEEP = 5
     fun autoBackup(id: String) {
         Thread {
             try {
