@@ -51,7 +51,10 @@ object ServerManager {
     fun consoleText(): String = synchronized(buf) { buf.toString() }
 
     fun logLine(s: String) { emit(s) }
-    fun serverPid(): Int? = try { val p = proc; if (p != null && p.isAlive) p.pid() else null } catch (_: Exception) { null }
+    fun serverPid(): Int? = try {
+        val p = proc ?: return null
+        val f = p.javaClass.getDeclaredField("pid"); f.isAccessible = true; f.getInt(p)
+    } catch (_: Exception) { null }
 
     private fun notifyCrash(ctx: android.content.Context?, restarting: Boolean) {
         try {
