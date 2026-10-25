@@ -28,6 +28,7 @@ android {
             signingConfig = signingConfigs.getByName("lime")
         }
         release {
+            signingConfig = signingConfigs.getByName("lime")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
