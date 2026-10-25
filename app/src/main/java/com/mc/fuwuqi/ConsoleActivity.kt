@@ -106,16 +106,26 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
         addrCard.addView(addrRow)
         addrText = Ui.text(this, "", 22f, getColor(R.color.green), true)
         addrText.setPadding(0, Ui.px(this, 6), 0, 0)
-        addrText.setOnClickListener {
-            val cm = getSystemService(ClipboardManager::class.java)
-            cm.setPrimaryClip(ClipData.newPlainText("addr", addrText.text))
-            Ui.toast(this, "已复制")
-        }
         addrCard.addView(addrText)
         val copyHint = Ui.text(this, "点击复制", 12f, getColor(R.color.text_sub))
         copyHint.gravity = Gravity.RIGHT
         copyHint.setPadding(0, Ui.px(this, 6), 0, 0)
         addrCard.addView(copyHint, Ui.lp(-1, -2))
+        // 整卡可点：复制联机地址（空地址时提示）
+        val doCopy = {
+            val addr = addrText.text?.toString()?.trim() ?: ""
+            if (addr.isEmpty()) {
+                Ui.toast(this, "暂无联机地址（服务器未就绪）")
+            } else {
+                val cm = getSystemService(ClipboardManager::class.java)
+                cm.setPrimaryClip(ClipData.newPlainText("addr", addr))
+                Ui.toast(this, "已复制：$addr")
+            }
+            Unit
+        }
+        addrCard.setOnClickListener { doCopy() }
+        addrText.setOnClickListener { doCopy() }
+        copyHint.setOnClickListener { doCopy() }
         root.addView(addrCard, Ui.lp(-1, -2).also { (it as LinearLayout.LayoutParams).setMargins(Ui.px(this, 20), 0, Ui.px(this, 20), 0) })
 
         val hint = Ui.text(this, "同一 WiFi 下，朋友在「多人游戏 → 直接连接」输入上面地址即可。端口不通时先看日志有没有 Done。", 12f, getColor(R.color.text_sub))
