@@ -86,6 +86,10 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
             pm.menu.add("服务器配置").setOnMenuItemClickListener {
                 startActivity(Intent(this, ConfigActivity::class.java).putExtra("id", id)); true
             }
+            pm.menu.add("插件管理").setOnMenuItemClickListener {
+                startActivity(Intent(this, PluginActivity::class.java)
+                    .putExtra("id", id).putExtra("mcVersion", srv.optString("mcVersion"))); true
+            }
             pm.menu.add("备份世界").setOnMenuItemClickListener { backupWorld(); true }
             pm.menu.add(if (following) "恢复日志跟随" else "暂停日志跟随").setOnMenuItemClickListener {
                 following = !following
