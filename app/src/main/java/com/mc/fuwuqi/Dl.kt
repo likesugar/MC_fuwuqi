@@ -15,18 +15,24 @@ object Dl {
     /** 下载到 destFile，cb(current,total) 每 200KB 回调一次，total 可为 -1 */
     fun download(urlStr: String, destFile: File, cb: (Long, Long) -> Unit = { _, _ -> }): Boolean {
         destFile.parentFile?.mkdirs()
-        val urls = listOf(urlStr, "https://gh-proxy.com/$urlStr", "https://ghproxy.net/$urlStr")
-        var lastErr: Exception? = null
-        for (u in urls) {
-            if (destFile.exists() && destFile.length() > 0) return true
-            try {
-                downloadOne(u, destFile, cb)
-                if (destFile.length() > 0) return true
-            } catch (e: Exception) { lastErr = e }
+        DownloadService.start(App.inst, "下载 ${destFile.name}")
+        DownloadService.progress(0, -1)
+        try {
+            val urls = listOf(urlStr, "https://gh-proxy.com/$urlStr", "https://ghproxy.net/$urlStr")
+            var lastErr: Exception? = null
+            for (u in urls) {
+                if (destFile.exists() && destFile.length() > 0) return true
+                try {
+                    downloadOne(u, destFile, cb)
+                    if (destFile.length() > 0) return true
+                } catch (e: Exception) { lastErr = e }
+            }
+            destFile.delete()
+            lastErr?.let { throw it }
+            return false
+        } finally {
+            DownloadService.stop(App.inst)
         }
-        destFile.delete()
-        lastErr?.let { throw it }
-        return false
     }
 
     private fun downloadOne(urlStr: String, destFile: File, cb: (Long, Long) -> Unit) {
@@ -61,7 +67,7 @@ object Dl {
                     if (n < 0) break
                     raf.write(buf, 0, n)
                     got += n; since += n
-                    if (since > 200_000) { since = 0; cb(got, total) }
+                    if (since > 200_000) { since = 0; cb(got, total); DownloadService.progress(got, total) }
                 }
             } finally { raf.close() }
         }
