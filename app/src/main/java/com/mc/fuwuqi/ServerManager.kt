@@ -19,6 +19,9 @@ object ServerManager {
     private val KEEP = 5
 
     private var proc: Process? = null
+    @Volatile private var userStop = false
+    @Volatile private var restartCount = 0
+    @Volatile private var lastCtx: android.content.Context? = null
     private var stdin: PrintWriter? = null
     private var watcher: Thread? = null
 
@@ -48,6 +51,20 @@ object ServerManager {
     fun consoleText(): String = synchronized(buf) { buf.toString() }
 
     fun logLine(s: String) { emit(s) }
+
+    private fun notifyCrash(ctx: android.content.Context?, restarting: Boolean) {
+        try {
+            val c = ctx ?: return
+            val nm = c.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+            nm.createNotificationChannel(android.app.NotificationChannel("crash", "服务器崩溃", android.app.NotificationManager.IMPORTANCE_DEFAULT))
+            val b = android.app.Notification.Builder(c, "crash")
+                .setSmallIcon(android.R.drawable.stat_notify_error)
+                .setContentTitle(if (restarting) "⚠️ 服务器崩溃" else "⚠️ 服务器反复崩溃")
+                .setContentText(if (restarting) "正在自动重启…" else "已停止自动重启，请检查内存/插件")
+                .setAutoCancel(true)
+            nm.notify(3001, b.build())
+        } catch (_: Exception) {}
+    }
     fun isRunning(id: String): Boolean = runningId == id && proc?.isAlive == true
 
     fun localIp(): String = try {
@@ -64,6 +81,7 @@ object ServerManager {
 
     /** 启动（异步，进度经 cb 回调）。成功回调 "OK"，失败回调 "ERR:xxx" */
     fun start(ctx: android.content.Context, srv: JSONObject, cb: (String) -> Unit) {
+        userStop = false; restartCount = 0; lastCtx = ctx
         val sid = srv.optString("id")
         val periodic = object : Runnable {
             override fun run() {
@@ -166,11 +184,28 @@ object ServerManager {
                     }
                     emit("· 进程已退出 exit=$code")
                     UiBus.post()
+                    val crashed = !userStop && runningId == srv.optString("id") &&
+                        code != 0 && code != 143 && code != 137
                     synchronized(this) {
                         if (runningId == srv.optString("id")) {
                             runningId = null; stdin = null; proc = null
                             try { wakeLock?.takeIf { it.isHeld }?.release() } catch (_: Exception) {}
                             wakeLock = null
+                        }
+                    }
+                    // 9/5：异常退出自动重启（连续 3 次放弃，防 OOM 死循环）
+                    if (crashed) {
+                        if (restartCount >= 2) {
+                            logLine("· 已连续崩溃 3 次，停止自动重启（请检查内存/插件）")
+                            notifyCrash(lastCtx, false)
+                        } else {
+                            restartCount++
+                            logLine("· 服务器崩溃，5 秒后自动重启（第 $restartCount 次）…")
+                            notifyCrash(lastCtx, true)
+                            try { Thread.sleep(5000) } catch (_: Exception) {}
+                            start(lastCtx ?: return@Thread, srv) {
+                                logLine(if (it == "OK") "· 自动重启成功" else "· 自动重启失败：$it")
+                            }
                         }
                     }
                 }
@@ -221,6 +256,7 @@ object ServerManager {
     }
 
     fun stop(): Boolean {
+        userStop = true
         backupRunnable?.let { backupHandler.removeCallbacks(it) }; backupRunnable = null
         autoBackup(runningId ?: "")
         val ok = send("stop")
