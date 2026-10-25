@@ -98,9 +98,8 @@ class PluginActivity : androidx.appcompat.app.AppCompatActivity() {
             try {
                 val api = "https://api.modrinth.com/v2/project/$slug/version" +
                     "?loaders=%5B%22paper%22%2C%22spigot%22%5D&game_versions=%5B%22$mcVersion%22%5D"
-                val arr: JSONArray
-                try { arr = JSONArray(Dl.fetchText(api)) }
-                catch (e: Exception) { arr = JSONArray(Dl.fetchText("https://api.modrinth.com/v2/project/$slug/version")) }
+                val arr: JSONArray = try { JSONArray(Dl.fetchText(api)) }
+                catch (e: Exception) { JSONArray(Dl.fetchText("https://api.modrinth.com/v2/project/$slug/version")) }
                 require(arr.length() > 0) { "Modrinth 上没有适配 $mcVersion 的版本" }
                 val files = arr.getJSONObject(0).getJSONArray("files")
                 var url = ""
