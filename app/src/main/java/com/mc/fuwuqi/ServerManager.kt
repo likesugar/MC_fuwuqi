@@ -14,6 +14,9 @@ import org.json.JSONObject
  * 单例持有当前运行中的服（同一时间一个），控制台输出环形缓冲。
  */
 object ServerManager {
+    private val backupHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var backupRunnable: Runnable? = null
+    private val KEEP = 5
 
     private var proc: Process? = null
     private var stdin: PrintWriter? = null
@@ -60,6 +63,15 @@ object ServerManager {
 
     /** 启动（异步，进度经 cb 回调）。成功回调 "OK"，失败回调 "ERR:xxx" */
     fun start(ctx: android.content.Context, srv: JSONObject, cb: (String) -> Unit) {
+        val sid = srv.optString("id")
+        val periodic = object : Runnable {
+            override fun run() {
+                if (isRunning(sid)) autoBackup(sid)
+                backupHandler.postDelayed(this, 30 * 60 * 1000L)
+            }
+        }
+        backupHandler.postDelayed(periodic, 30 * 60 * 1000L)
+        backupRunnable = periodic
         if (runningId != null || starting) { cb("ERR:已有服务器在运行"); return }
         starting = true
         Store.initInternal(ctx.applicationContext)
@@ -181,7 +193,37 @@ object ServerManager {
         w.println(cmd); return true
     }
 
+    // ---------- 自动备份（7/5） ----------
+    private val backupHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val KEEP = 5
+    fun autoBackup(id: String) {
+        Thread {
+            try {
+                val dir = Store.serverDir(id)
+                val world = java.io.File(dir, "world")
+                if (!world.isDirectory) return@Thread
+                val out = java.io.File(Store.base, "backups").apply { mkdirs() }
+                val f = java.io.File(out, "${id}-${System.currentTimeMillis()}.zip")
+                val zos = java.util.zip.ZipOutputStream(java.io.FileOutputStream(f))
+                dir.walkTopDown().filter { it.isFile && it.name != "server.jar" &&
+                    !it.name.endsWith(".part") && !it.absolutePath.contains("backups") }.forEach { file ->
+                    zos.putNextEntry(java.util.zip.ZipEntry(dir.toPath().relativize(file.toPath()).toString()))
+                    java.io.FileInputStream(file).use { it.copyTo(zos) }
+                    zos.closeEntry()
+                }
+                zos.close()
+                // 保留最近 KEEP 份
+                out.listFiles()?.filter { it.name.startsWith("$id-") }?.sortedBy { it.name }?.let { list ->
+                    if (list.size > KEEP) list.take(list.size - KEEP).forEach { it.delete() }
+                }
+                onLine("已自动备份：${f.name}")
+            } catch (e: Exception) { onLine("自动备份失败：${e.message}") }
+        }.start()
+    }
+
     fun stop(): Boolean {
+        backupRunnable?.let { backupHandler.removeCallbacks(it) }; backupRunnable = null
+        autoBackup(runningId ?: "")
         val ok = send("stop")
         // 优雅停止给 4 秒，超时强杀（proot + java 一起收）
         Thread {
