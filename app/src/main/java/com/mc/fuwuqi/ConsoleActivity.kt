@@ -86,7 +86,8 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
             pm.menu.add("服务器配置").setOnMenuItemClickListener {
                 startActivity(Intent(this, ConfigActivity::class.java).putExtra("id", id)); true
             }
-            pm.menu.add("插件管理").setOnMenuItemClickListener {
+            // Paper 插件只适用于 Bukkit 系核心（Paper/互通服/Purpur）
+            if (Cores.isBukkitLike(srv.optString("core"))) pm.menu.add("插件管理").setOnMenuItemClickListener {
                 startActivity(Intent(this, PluginActivity::class.java)
                     .putExtra("id", id).putExtra("mcVersion", srv.optString("mcVersion"))); true
             }

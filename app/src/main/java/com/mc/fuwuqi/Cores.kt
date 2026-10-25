@@ -73,6 +73,10 @@ object Cores {
         }
     } catch (e: Exception) { emptyList() }
 
+    /** Bukkit 系核心才支持 Paper 插件 */
+    fun isBukkitLike(core: String): Boolean =
+        core.equals(PAPER, true) || core.equals(CROSSPLAY, true) || core.equals(PURPUR, true)
+
     fun list(core: String): List<String> = when (core) {
         PAPER, CROSSPLAY -> paperVersions().asReversed()
         PURPUR -> purpurVersions()
