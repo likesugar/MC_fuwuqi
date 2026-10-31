@@ -277,11 +277,15 @@ object Cores {
     }
 
     /**
-     * ViaVersion 版本桥接。
+     * ViaVersion 版本桥接（内置优先，联网兜底）。
      *
      * Geyser 2.12 是以 Java 26.3 的身份连后端服务器的，而 App 提供的核心基本是 1.21.x。
      * 不装这个，Geyser 启动时只会打一行 WARN，等基岩玩家真的连进来才因为版本不符被踢，
      * 表现就是"能连上服务器、进世界时失败"。所以互通服必须带上它。
+     *
+     * 自 v1.0-72 起，ViaVersion 随 APK 内置（assets/bridge/ViaVersion-<ver>.jar，约 5MB），
+     * 创建/启动互通服时本地直接拷进 plugins 即可，无需联网、不受 geysermc.org/GitHub 抖动影响；
+     * 仅当内置包缺失（如精简构建或资产未打包）或拷贝失败时，才回退到联网下载。
      */
     fun ensureViaVersion(dir: File, cb: (String) -> Unit): Boolean {
         val plugins = File(dir, "plugins").apply { mkdirs() }
@@ -289,14 +293,31 @@ object Cores {
             it.isFile && it.name.startsWith("ViaVersion") && it.name.endsWith(".jar") && it.length() > 1_000_000
         } == true
         if (exists) return true
-        cb("下载 ViaVersion 版本桥接插件 …")
-        return try {
-            Dl.download(
-                "https://github.com/ViaVersion/ViaVersion/releases/download/$VIA_VER/ViaVersion-$VIA_VER.jar",
-                File(plugins, "ViaVersion-$VIA_VER.jar")) { _, _ -> }
-        } catch (e: Exception) {
-            cb("ViaVersion 下载失败：${e.message}（基岩版可能进不去）")
-            false
+        // 1) 优先用内置版本桥接插件（离线、稳）
+        val assetName = "bridge/ViaVersion-$VIA_VER.jar"
+        val tmp = File(Store.runDir, "via-$VIA_VER.tmp")
+        try {
+            App.inst.assets.open(assetName).use { ins ->
+                tmp.parentFile?.mkdirs()
+                tmp.outputStream().use { ins.copyTo(it) }
+            }
+            val dest = File(plugins, "ViaVersion-$VIA_VER.jar")
+            if (!dest.exists() || dest.length() != tmp.length()) tmp.copyTo(dest, overwrite = true)
+            tmp.delete()
+            cb("已写入内置版本桥接插件 ViaVersion $VIA_VER")
+            return true
+        } catch (_: Exception) {
+            tmp.delete()
+            // 2) 兜底：内置包缺失或拷贝失败，回退联网下载
+            cb("内置版本桥接不可用，尝试联网下载 …")
+            return try {
+                Dl.download(
+                    "https://github.com/ViaVersion/ViaVersion/releases/download/$VIA_VER/ViaVersion-$VIA_VER.jar",
+                    File(plugins, "ViaVersion-$VIA_VER.jar")) { _, _ -> }
+            } catch (e2: Exception) {
+                cb("ViaVersion 下载失败：${e2.message}（基岩版可能进不去）")
+                false
+            }
         }
     }
 
