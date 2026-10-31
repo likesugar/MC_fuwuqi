@@ -21,7 +21,6 @@
         android:icon="@mipmap/ic_launcher"
         android:theme="@style/AppTheme"
         android:allowBackup="false"
-        android:extractNativeLibs="true"
         android:requestLegacyExternalStorage="true">
 
         <activity android:name=".MainActivity" android:exported="true"

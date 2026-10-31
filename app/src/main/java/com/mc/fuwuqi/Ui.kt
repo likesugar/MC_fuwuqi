@@ -51,7 +51,7 @@ object Ui {
         Store.initInternal(a.applicationContext)
         val w = a.window
         if (android.os.Build.VERSION.SDK_INT >= 30) {
-            w.setDecorFitsSystemWindows(false)
+            androidx.core.view.WindowCompat.setDecorFitsSystemWindows(w, false)
             val content = a.findViewById<android.view.ViewGroup>(android.R.id.content)
             content.setOnApplyWindowInsetsListener { v, insets ->
                 val wi = insets as android.view.WindowInsets

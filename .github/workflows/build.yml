@@ -5,12 +5,14 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # 固定镜像版本：ubuntu-latest 开始迁移到 Ubuntu 26，会导致构建环境漂移
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v5
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -19,7 +21,7 @@ jobs:
           curl -sL -o gradle.zip https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
           unzip -q gradle.zip
           ./gradle-8.11.1/bin/gradle --version
-      - name: Build debug APK
+      - name: Build release APK
         run: ./gradle-8.11.1/bin/gradle :app:assembleRelease --no-daemon
       - name: Rename APK
         run: mv app/build/outputs/apk/release/*.apk "MC-kai-fu-v1.0.apk"
@@ -27,9 +29,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v1.0-${{ github.run_number }}" "MC-kai-fu-v1.0.apk" --title "MC开服 v1.0" --notes "自构建版，直接安装" || gh release upload "v1.0-${{ github.run_number }}" "MC-kai-fu-v1.0.apk" --clobber
+          TAG="v1.0-${{ github.run_number }}"
+          gh release create "$TAG" "MC-kai-fu-v1.0.apk" --title "MC开服 v1.0" --notes "自构建版，直接安装" \
+            || gh release upload "$TAG" "MC-kai-fu-v1.0.apk" --clobber
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
-          name: MC-kai-fu-1.0-debug
-          path: MC开服_v1.0.apk
+          name: MC-kai-fu-v1.0
+          path: MC-kai-fu-v1.0.apk
+          if-no-files-found: error

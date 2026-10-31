@@ -111,7 +111,7 @@ object Dl {
         val tar = ArchiveStreamFactory().createArchiveInputStream("tar", stream) as TarArchiveInputStream
         var count = 0
         while (true) {
-            val e = tar.nextTarEntry ?: break
+            val e = tar.nextEntry ?: break
             var rel = e.name.trim().removePrefix("./")
             if (stripComponents > 0) {
                 val parts = rel.split('/').filter { it.isNotEmpty() }
