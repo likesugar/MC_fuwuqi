@@ -132,7 +132,10 @@ object ServerManager {
                 if (srv.optString("core") == Cores.CROSSPLAY) {
                     try {
                         Cores.ensureCrossplayConfig(dir, srv.optBoolean("onlineMode", false), srv.optInt("port", 25565))
-                        emit("· 互通配置已校正：Geyser 基岩端口 19132（UDP）")
+                        // 老版本 App 建的互通服没装 ViaVersion：Geyser 以 Java 26.3 连 1.21.x 核心会被拒，
+                        // 表现为基岩玩家能连上服务器但进世界失败，这里自动补齐
+                        Cores.ensureViaVersion(dir) { emit("· $it") }
+                        emit("· 互通配置已校正：基岩端口 19132（NetherNet，TCP+UDP 同端口）")
                     } catch (e: Exception) { emit("· 互通配置校正失败：${e.message}") }
                     // 这版 Geyser 支持的基岩版版本：手机端必须一致，否则一直卡在“正在连接”
                     Cores.bedrockVersion(File(dir, "plugins/Geyser-Spigot.jar"))?.let { bv ->

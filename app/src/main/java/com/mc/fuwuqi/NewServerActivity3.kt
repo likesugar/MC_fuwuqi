@@ -73,7 +73,7 @@ class NewServerActivity3 : androidx.appcompat.app.AppCompatActivity() {
                 "📱 互通服提示：基岩版（手机）玩家填「服务器 IP + 端口 19132」即可，局域网里也能直接搜到。\n" +
                 "· 正版模式：基岩玩家需 Xbox 账号验证，进服名字会带 \".\" 前缀，可公开 IP\n" +
                 "· 离线模式：任何人可直接进，仅限熟人使用，严禁公开 IP\n" +
-                "· 外网联机：路由器需放行 UDP 19132（新版基岩客户端还会用 UDP 19133），端口写错的典型现象就是“一直显示正在连接”", 12.5f, getColor(R.color.text_sub)))
+                "· 外网联机：路由器要同时放行 TCP 和 UDP 19132 —— 基岩 26.60 起改走 NetherNet，只转发 UDP 会一直连不上；用 IP 直连时首次会弹「是否信任此服务器」，选信任", 12.5f, getColor(R.color.text_sub)))
             (root.getChildAt(root.childCount - 1) as TextView).setPadding(Ui.px(this, 20), Ui.px(this, 10), Ui.px(this, 20), Ui.px(this, 4))
             // 基岩版版本：手机端版本必须与 Geyser 支持的版本一致，否则一直卡在“正在连接”
             val bvText = Ui.text(this, "· 基岩版版本：检测中 …", 12.5f, getColor(R.color.green), true)

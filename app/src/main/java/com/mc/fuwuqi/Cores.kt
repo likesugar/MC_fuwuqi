@@ -12,6 +12,9 @@ object Cores {
     const val MANIFEST_V2 = "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json"
     const val MANIFEST_BMCL = "https://bmclapi2.bangbang93.com/version_manifest_v2.json"
 
+    /** 互通服用：Geyser 要求的 Java 协议比核心新，靠 ViaVersion 桥接 */
+    const val VIA_VER = "5.12.2"
+
     private fun arr2list(a: JSONArray): List<String> =
         (0 until a.length()).map { a.getString(it) }
 
@@ -260,6 +263,7 @@ object Cores {
         Dl.download("https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/spigot", gjar) { _, _ -> }
         cb("下载 Floodgate 插件 …")
         Dl.download("https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest/downloads/spigot", File(plugins, "Floodgate-Spigot.jar")) { _, _ -> }
+        ensureViaVersion(dir, cb)
         // server.properties 由创建流程按用户配置写入（含 online-mode），这里只写 Geyser 的 config.yml
         ensureCrossplayConfig(dir, onlineMode, javaPort)
         val bv = bedrockVersion(gjar)
@@ -273,22 +277,46 @@ object Cores {
     }
 
     /**
+     * ViaVersion 版本桥接。
+     *
+     * Geyser 2.12 是以 Java 26.3 的身份连后端服务器的，而 App 提供的核心基本是 1.21.x。
+     * 不装这个，Geyser 启动时只会打一行 WARN，等基岩玩家真的连进来才因为版本不符被踢，
+     * 表现就是"能连上服务器、进世界时失败"。所以互通服必须带上它。
+     */
+    fun ensureViaVersion(dir: File, cb: (String) -> Unit): Boolean {
+        val plugins = File(dir, "plugins").apply { mkdirs() }
+        val exists = plugins.listFiles()?.any {
+            it.isFile && it.name.startsWith("ViaVersion") && it.name.endsWith(".jar") && it.length() > 1_000_000
+        } == true
+        if (exists) return true
+        cb("下载 ViaVersion 版本桥接插件 …")
+        return try {
+            Dl.download(
+                "https://github.com/ViaVersion/ViaVersion/releases/download/$VIA_VER/ViaVersion-$VIA_VER.jar",
+                File(plugins, "ViaVersion-$VIA_VER.jar")) { _, _ -> }
+        } catch (e: Exception) {
+            cb("ViaVersion 下载失败：${e.message}（基岩版可能进不去）")
+            false
+        }
+    }
+
+    /**
      * Geyser 2.x 的配置骨架。
      *
      * 注意（2026-10 线上问题复盘）：
      * - auth-type 在 Geyser 2.x 里属 java 段，写成顶层键会被整段丢弃，Geyser 退回 online，
      *   基岩玩家于是被要求用 Java 正版账号登录，表现就是"开了互通但基岩版进不去"。
-     * - Geyser 2.12 起 bedrock.transport 默认 nethernet，手机版"添加服务器"直连 IP:19132
-     *   走 RakNet 探测，收不到回应（局域网也搜不到）；改成 both 且给 NetherNet 单独端口后
-     *   两条链路都能连。
+     * - 基岩 26.60（2026-10-27）起客户端不再走 RakNet，改走 NetherNet（TCP 信令 + WebRTC/UDP）。
+     *   用 transport: nethernet + webrtc-port: 0，TCP/UDP 都落在 19132，玩家只填一个端口；
+     *   旧的 both + 19133 要多占一个 UDP 端口，路由器少开一个、或客户端缓存了旧连接信息就连不上。
      * - java.port 必须跟随用户实际设置的 Java 端口，否则改了端口后 Geyser 连不上后端。
      */
     fun crossplayConfig(onlineMode: Boolean, javaPort: Int): String =
         "bedrock:\n" +
         "  address: 0.0.0.0\n" +
         "  port: 19132\n" +
-        "  webrtc-port: 19133\n" +
-        "  transport: both\n" +
+        "  webrtc-port: 0\n" +
+        "  transport: nethernet\n" +
         "  clone-remote-port: false\n" +
         "java:\n" +
         "  address: 127.0.0.1\n" +
@@ -313,8 +341,10 @@ object Cores {
             return
         }
         t = patchSection(t, "bedrock", "port", "19132")
-        t = patchSection(t, "bedrock", "webrtc-port", "19133")
-        t = patchSection(t, "bedrock", "transport", "both")
+        // 基岩 26.60（2026-10-27）起客户端不再走 RakNet，改走 NetherNet（TCP 信令 + WebRTC/UDP）。
+        // 用 nethernet 单端口：TCP+UDP 都走 19132，玩家只填一个端口，少一层出错机会。
+        t = patchSection(t, "bedrock", "webrtc-port", "0")
+        t = patchSection(t, "bedrock", "transport", "nethernet")
         t = patchSection(t, "java", "address", "127.0.0.1")
         t = patchSection(t, "java", "port", javaPort.toString())
         t = patchSection(t, "java", "auth-type", auth)
