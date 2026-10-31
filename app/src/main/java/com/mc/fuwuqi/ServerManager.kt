@@ -158,10 +158,8 @@ object ServerManager {
                         // 老版本 App 建的互通服没装 ViaVersion：Geyser 以 Java 26.3 连 1.21.x 核心会被拒，
                         // 表现为基岩玩家能连上服务器但进世界失败，这里自动补齐
                         Cores.ensureViaVersion(dir) { emit("· $it") }
-                        emit(if (lanIp.isNotEmpty())
-                            "· 互通配置已校正：基岩端口 19132（NetherNet，信令地址 $lanIp:19132）"
-                        else
-                            "· 互通配置已校正：基岩端口 19132（未取到局域网 IP，靠 STUN 自动发现）")
+                        emit("· 互通配置已校正：基岩端口 19132（NetherNet）。" +
+                            "同一台手机玩填 127.0.0.1:19132，同一 WiFi 其他设备填 ${lanIp.ifEmpty { "本机局域网IP" }}:19132")
                     } catch (e: Exception) { emit("· 互通配置校正失败：${e.message}") }
                     // 这版 Geyser 支持的基岩版版本：手机端必须一致，否则一直卡在“正在连接”
                     Cores.bedrockVersion(File(dir, "plugins/Geyser-Spigot.jar"))?.let { bv ->

@@ -396,11 +396,13 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
         val isCross = srv.optString("core") == Cores.CROSSPLAY
         val bv = srv.optString("bedrockVersion")
         if (isCross) {
-            val baddr = if (running && ip.isNotEmpty()) "$ip:19132" else ""
+            val lan = if (running && ip.isNotEmpty()) "$ip:19132" else ""
             bedrockText.visibility = View.VISIBLE
-            bedrockText.text = "基岩版（手机/平板）：${baddr.ifEmpty { "—" }} · 对应版本 " +
-                bv.ifEmpty { "识别中…" } + if (baddr.isNotEmpty()) "（点击复制）" else ""
-            bedrockText.tag = baddr
+            bedrockText.text = "基岩版连接地址：同机玩填 127.0.0.1:19132，同一 WiFi 其他设备填 " +
+                "${lan.ifEmpty { "本机局域网IP" }}:19132 · 对应版本 " + bv.ifEmpty { "识别中…" } +
+                "（点击复制 127.0.0.1:19132）"
+            // 同机自连是最常见的失败场景（填 LAN IP 会卡在 UDP 握手），所以点击默认复制 127.0.0.1
+            bedrockText.tag = "127.0.0.1:19132"
             if (bv.isEmpty() && !bvLoading) {
                 bvLoading = true
                 Thread {

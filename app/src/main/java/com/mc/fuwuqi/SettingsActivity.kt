@@ -147,12 +147,12 @@ class SettingsActivity : androidx.appcompat.app.AppCompatActivity() {
         hc.addView(Ui.text(this, "基岩版（手机 / 平板）", 16f, getColor(R.color.text), true).also {
             it.setPadding(0, Ui.px(this, 12), 0, 0) })
         hc.addView(Ui.text(this,
-            "「游戏 → 服务器 → 添加服务器」，地址填 IP，端口填 19132，首次连接会弹「是否信任此服务器」，选信任即可；客户端版本需与上面一致（不匹配会一直卡在“正在连接”）。",
+            "「游戏 → 服务器 → 添加服务器」，端口填 19132；地址：若在同一台手机上开服又用基岩版连，填 127.0.0.1；若用同一 WiFi 下的另一台设备连，填上方显示的局域网 IP。首次连接弹「是否信任此服务器」选信任；客户端版本需与上面一致（不匹配会一直卡在“正在连接”）。",
             13f, getColor(R.color.text_sub)).also { it.setPadding(0, Ui.px(this, 4), 0, 0) })
         hc.addView(Ui.text(this, "基岩 26.60 起改用 NetherNet", 16f, getColor(R.color.text), true).also {
             it.setPadding(0, Ui.px(this, 12), 0, 0) })
         hc.addView(Ui.text(this,
-            "26.60 起基岩客户端改走 NetherNet，需 19132 的 TCP 和 UDP 同时可达。若客户端报 Terracotta / InitialConnection-149，多半是 19132 的 TCP 没放通，或客户端缓存了旧条目 —— 删掉该服务器重新添加即可。",
+            "26.60 起基岩客户端改走 NetherNet：需 19132 的 TCP 与 UDP 同时可达。最常见的“握手失败”是同一台手机自连时填了局域网 IP —— 流量从 wlan0 出去又回 wlan0 会被 Android 拦下，改用 127.0.0.1 即可。客户端缓存旧条目也会失败，删掉该服务器重新添加。",
             13f, getColor(R.color.text_sub)).also { it.setPadding(0, Ui.px(this, 4), 0, 0) })
         listWrap.addView(hc, Ui.lp(-1, -2).also { it.topMargin = Ui.px(this, 4) })
 

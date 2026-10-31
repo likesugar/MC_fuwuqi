@@ -386,7 +386,11 @@ object Cores {
      * - java.port 必须跟随用户实际设置的 Java 端口，否则改了端口后 Geyser 连不上后端。
      */
     fun crossplayConfig(onlineMode: Boolean, javaPort: Int, advertiseIp: String = ""): String {
-        val adv = if (advertiseIp.isNotBlank()) "[\"$advertiseIp:19132\"]" else "[]"
+        // 始终通告 127.0.0.1：同一台手机开服又用基岩版连时，填 127.0.0.1 走本机回环，
+        // 不会触发 Android 对"LAN IP 出 wlan0 又回 wlan0"的 hairpin 限制（UDP 握手必失败）。
+        // 再补一个局域网 IP，给同一 WiFi 下别的设备用。
+        val adv = if (advertiseIp.isNotBlank() && advertiseIp != "127.0.0.1")
+            "[\"127.0.0.1:19132\", \"$advertiseIp:19132\"]" else "[\"127.0.0.1:19132\"]"
         return "bedrock:\n" +
         "  address: 0.0.0.0\n" +
         "  port: 19132\n" +
@@ -455,14 +459,17 @@ object Cores {
             if (l.isNotBlank() && !l.startsWith("    ")) { end = i; break }
         }
         val at = (sig + 1 until end).firstOrNull { lines[it].trimStart().startsWith("advertise-addresses:") }
+        // 同机自连必须通告 127.0.0.1，否则基岩版填 LAN IP 时会卡在 UDP 握手（hairpin 被 Android 挡）
+        val adv = if (addr.isNotBlank() && addr != "127.0.0.1")
+            "[\"127.0.0.1:19132\", \"$addr:19132\"]" else "[\"127.0.0.1:19132\"]"
         if (at == null) {
-            lines.add(sig + 1, "    advertise-addresses: [\"$addr:19132\"]")
+            lines.add(sig + 1, "    advertise-addresses: $adv")
             return lines.joinToString("\n")
         }
         // 旧值可能是 []，也可能是多行列表，一并清掉
         var stop = at + 1
         while (stop < end && lines[stop].trimStart().startsWith("-")) stop++
-        lines[at] = "    advertise-addresses: [\"$addr:19132\"]"
+        lines[at] = "    advertise-addresses: $adv"
         if (stop > at + 1) lines.subList(at + 1, stop).clear()
         return lines.joinToString("\n")
     }
