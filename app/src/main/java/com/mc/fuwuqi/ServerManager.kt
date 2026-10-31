@@ -21,6 +21,7 @@ object ServerManager {
     private var proc: Process? = null
     @Volatile private var userStop = false
     @Volatile private var restartCount = 0
+    @Volatile private var lastCrashMs = 0L
     @Volatile private var lastCtx: android.content.Context? = null
     private var stdin: PrintWriter? = null
     private var watcher: Thread? = null
@@ -178,6 +179,8 @@ object ServerManager {
                     proc = pb.start()
                     runningId = srv.optString("id")
                     stdin = PrintWriter(proc!!.outputStream, true)
+                    // 记住"这个服应该在跑"：前台服务被系统重建时靠它自动恢复
+                    ServerService.markRunning(appCtx, srv.optString("id"))
                     UiBus.post()
                 }
                 cb("OK")
@@ -201,8 +204,13 @@ object ServerManager {
                     }
                     emit("· 进程已退出 exit=$code")
                     UiBus.post()
+                    // 137 = SIGKILL：后台挂久了 java 子进程被 LMK 回收就是它。
+                    // 旧代码把 137 排除在「崩溃」之外，结果被系统杀掉后永不自动重启，
+                    // 而前台服务还活着、通知照常显示 —— 典型现象就是「通知在，但连不上」。
+                    val killedBySystem = code == 137
                     val crashed = !userStop && runningId == srv.optString("id") &&
-                        code != 0 && code != 143 && code != 137
+                        code != 0 && code != 143
+                    if (killedBySystem) emit("· 服务器被系统回收（exit=137），正在恢复 …")
                     synchronized(this) {
                         if (runningId == srv.optString("id")) {
                             runningId = null; stdin = null; proc = null
@@ -212,9 +220,15 @@ object ServerManager {
                     }
                     // 9/5：异常退出自动重启（连续 3 次放弃，防 OOM 死循环）
                     if (crashed) {
+                        // 连续崩溃的窗口是 5 分钟：跑稳 5 分钟以上再被杀算新的一轮，
+                        // 否则「后台一小时被回收」会累计到第 3 次就永久放弃重启。
+                        val now = System.currentTimeMillis()
+                        if (lastCrashMs == 0L || now - lastCrashMs > 5 * 60_000) restartCount = 0
+                        lastCrashMs = now
                         if (restartCount >= 2) {
                             logLine("· 已连续崩溃 3 次，停止自动重启（请检查内存/插件）")
                             notifyCrash(lastCtx, false)
+                            lastCtx?.let { ServerService.clearRunning(it) }
                         } else {
                             restartCount++
                             logLine("· 服务器崩溃，5 秒后自动重启（第 $restartCount 次）…")
@@ -276,6 +290,7 @@ object ServerManager {
         userStop = true
         backupRunnable?.let { backupHandler.removeCallbacks(it) }; backupRunnable = null
         autoBackup(runningId ?: "")
+        lastCtx?.let { ServerService.clearRunning(it) }
         val ok = send("stop")
         // 优雅停止给 4 秒，超时强杀（proot + java 一起收）
         Thread {

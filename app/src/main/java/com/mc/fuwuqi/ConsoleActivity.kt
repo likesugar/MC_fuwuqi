@@ -31,6 +31,7 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
     private lateinit var addrText: TextView
     private lateinit var bedrockText: TextView
     private lateinit var connHint: TextView
+    private lateinit var keepAliveTip: TextView
     private lateinit var listenState: TextView
     private lateinit var input: EditText
     private lateinit var quick: LinearLayout
@@ -163,6 +164,12 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
             }
         }
         root.addView(addrCard, Ui.lp(-1, -2).also { (it as LinearLayout.LayoutParams).setMargins(Ui.px(this, 20), 0, Ui.px(this, 20), 0) })
+
+        // 电池优化未豁免时提示（Doze 会掐网，长连接直接 reset）
+        keepAliveTip = Ui.text(this, "", 12f, getColor(R.color.amber_text), true)
+        keepAliveTip.setPadding(Ui.px(this, 24), Ui.px(this, 10), Ui.px(this, 24), 0)
+        keepAliveTip.setOnClickListener { openBatterySettings() }
+        root.addView(keepAliveTip)
 
         connHint = Ui.text(this, "同一 WiFi 下，朋友在「多人游戏 → 直接连接」输入上面地址即可。端口不通时先看日志有没有 Done。", 12f, getColor(R.color.text_sub))
         connHint.setPadding(Ui.px(this, 24), Ui.px(this, 10), Ui.px(this, 24), 0)
@@ -316,20 +323,50 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
 
     private fun startServer() {
         val srv = Store.findServer(id) ?: return
+        // 先起前台服务再拉 java：解压/JRE 校验这段最容易被系统冻结
+        ServerService.start(this, id, srv.optString("name"), srv.optInt("port", 25565))
         ServerManager.start(this, srv) { r ->
             runOnUiThread {
-                if (r.startsWith("ERR")) { readyNotified = false; Ui.toast(this, "启动失败：${r.removePrefix("ERR:")}"); render() }
-                else {
-                    if (Ui.notifGranted(this)) {
-                        val i = Intent(this, ServerService::class.java)
-                            .putExtra("id", id)
-                            .putExtra("name", srv.optString("name"))
-                            .putExtra("port", srv.optInt("port", 25565))
-                        startForegroundService(i)
-                    }
+                if (r.startsWith("ERR")) {
+                    readyNotified = false
+                    ServerService.stop(this)
+                    ServerService.clearRunning(this)
+                    Ui.toast(this, "启动失败：${r.removePrefix("ERR:")}")
+                    render()
+                } else {
+                    askKeepAliveOnce()
                     render()
                 }
             }
+        }
+    }
+
+    /** 首次开服提醒加入电池优化白名单：Doze 会掐网，表现为客户端 Connection reset */
+    private fun askKeepAliveOnce() {
+        try {
+            val pm = getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
+            if (pm.isIgnoringBatteryOptimizations(packageName)) return
+            val p = getSharedPreferences("app", 0)
+            if (p.getBoolean("asked_battery", false)) return
+            p.edit().putBoolean("asked_battery", true).apply()
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("开启后台保活，避免掉线")
+                .setMessage("息屏或切后台一段时间后，系统会限制本应用的网络，客户端就会报「连接已丢失 / Connection reset」。\n\n加入电池优化白名单后，锁屏、切后台都能稳定开服。")
+                .setPositiveButton("去开启") { _, _ -> openBatterySettings() }
+                .setNegativeButton("稍后", null)
+                .show()
+        } catch (_: Exception) {}
+    }
+
+    private fun openBatterySettings() {
+        try {
+            startActivity(android.content.Intent(
+                android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                android.net.Uri.parse("package:$packageName")))
+        } catch (_: Exception) {
+            try {
+                startActivity(android.content.Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+            } catch (_: Exception) {}
         }
     }
 
@@ -387,6 +424,15 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
             "客户端版本需与上面一致（版本不匹配会一直卡在“正在连接”）。"
         else
             "同一 WiFi 下，朋友在「多人游戏 → 直接连接」输入上面地址即可。端口不通时先看日志有没有 Done。"
+        try {
+            val pm = getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
+            if (pm.isIgnoringBatteryOptimizations(packageName)) {
+                keepAliveTip.visibility = View.GONE
+            } else {
+                keepAliveTip.visibility = View.VISIBLE
+                keepAliveTip.text = "⚠ 未加入电池优化白名单：切后台/息屏久了会断网，客户端报 Connection reset。点这里开启 ›"
+            }
+        } catch (_: Exception) { keepAliveTip.visibility = View.GONE }
         listenState.text = if (running) "● 端口已监听" else "○ 未运行"
         listenState.setTextColor(getColor(if (running) R.color.green else R.color.text_sub))
         buildQuick(running)

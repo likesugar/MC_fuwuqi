@@ -195,12 +195,12 @@ class SettingsActivity : androidx.appcompat.app.AppCompatActivity() {
         ac.addView(saveFlag)
         listWrap.addView(ac, Ui.lp(-1, -2).also { it.topMargin = Ui.px(this, 4) })
 
-        // 性能（12/5）
-        listWrap.addView(section("性能"))
+        // 后台保活（12/5）
+        listWrap.addView(section("后台保活"))
         val pc = Ui.card(this)
         pc.setPadding(Ui.px(this, 18), Ui.px(this, 14), Ui.px(this, 18), Ui.px(this, 16))
         pc.addView(Ui.text(this, "电池优化豁免", 16f, getColor(R.color.text), true))
-        pc.addView(Ui.text(this, "省电策略会限制 CPU 频率、冻结后台进程，导致 TPS 掉帧/服务器被杀。加入白名单后开服更稳。", 12f, getColor(R.color.text_sub)).also {
+        pc.addView(Ui.text(this, "不开这项，息屏约 10 分钟后系统会进入 Doze 掐断网络，客户端就报「连接已丢失 / Connection reset」。开服 App 建议必开。", 12f, getColor(R.color.text_sub)).also {
             it.setPadding(0, Ui.px(this, 4), 0, 0)
         })
         val batBtn = Ui.text(this, "申请忽略电池优化", 15f, getColor(R.color.green), true)
@@ -224,6 +224,29 @@ class SettingsActivity : androidx.appcompat.app.AppCompatActivity() {
             }
         }
         pc.addView(batBtn)
+
+        // 通知权限（Android 13+）：被拒不影响后台运行，但通知栏看不到状态和停止按钮
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            val notifOk = checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) ==
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+            val nBtn = Ui.text(this,
+                if (notifOk) "✓ 通知已开启（可显示运行状态与停止按钮）" else "开启通知（显示运行状态与停止按钮）",
+                14f, if (notifOk) getColor(R.color.text_sub) else getColor(R.color.green), true)
+            nBtn.setPadding(0, Ui.px(this, 12), 0, 0)
+            nBtn.setOnClickListener {
+                if (!notifOk) requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 21)
+                else Ui.toast(this, "已开启")
+            }
+            pc.addView(nBtn)
+        }
+
+        val bgBtn = Ui.text(this, "允许后台运行 / 自启动（国产 ROM 必开）", 15f, getColor(R.color.green), true)
+        bgBtn.setPadding(0, Ui.px(this, 12), 0, 0)
+        bgBtn.setOnClickListener { openAutoStartSettings() }
+        pc.addView(bgBtn)
+        val bgDesc = Ui.text(this, "小米/红米、华为/荣耀、OPPO/一加、vivo/iQOO 等系统会额外清理后台，需在「自启动/后台运行」里放行本应用。", 12f, getColor(R.color.text_sub))
+        bgDesc.setPadding(0, Ui.px(this, 6), 0, 0)
+        pc.addView(bgDesc)
         listWrap.addView(pc, Ui.lp(-1, -2).also { it.topMargin = Ui.px(this, 4) })
 
         // 工具
@@ -237,6 +260,36 @@ class SettingsActivity : androidx.appcompat.app.AppCompatActivity() {
         tc.setOnClickListener { startActivity(Intent(this, CmdActivity::class.java)) }
         listWrap.addView(tc, Ui.lp(-1, -2).also { it.topMargin = Ui.px(this, 4) })
 
+    }
+
+    /** 跳国产 ROM 的「自启动 / 后台运行」管理页，跳不过去就落到应用详情页 */
+    private fun openAutoStartSettings() {
+        val m = android.os.Build.MANUFACTURER.lowercase()
+        val targets = when {
+            m.contains("xiaomi") || m.contains("redmi") -> listOf(
+                "com.miui.securitycenter" to "com.miui.permcenter.autostart.AutoStartManagementActivity")
+            m.contains("huawei") || m.contains("honor") -> listOf(
+                "com.huawei.systemmanager" to "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity",
+                "com.huawei.systemmanager" to "com.huawei.systemmanager.optimize.process.ProtectActivity")
+            m.contains("oppo") || m.contains("realme") || m.contains("oneplus") -> listOf(
+                "com.coloros.safecenter" to "com.coloros.safecenter.startupapp.StartupAppListActivity",
+                "com.oplus.safecenter" to "com.oplus.safecenter.startupapp.StartupAppListActivity")
+            m.contains("vivo") || m.contains("iqoo") -> listOf(
+                "com.vivo.permissionmanager" to "com.vivo.permissionmanager.activity.BgStartUpManagerActivity",
+                "com.iqoo.secure" to "com.iqoo.secure.ui.phoneoptimize.AddWhiteListActivity")
+            else -> emptyList()
+        }
+        for ((pkg, cls) in targets) {
+            try {
+                startActivity(android.content.Intent().setComponent(android.content.ComponentName(pkg, cls)))
+                return
+            } catch (_: Exception) {}
+        }
+        try {
+            startActivity(android.content.Intent(
+                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                android.net.Uri.parse("package:$packageName")))
+        } catch (_: Exception) {}
     }
 
     private val progressViews = mutableListOf<TextView>()
