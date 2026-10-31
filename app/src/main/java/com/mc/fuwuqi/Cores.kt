@@ -380,9 +380,10 @@ object Cores {
      * 注意（2026-10 线上问题复盘）：
      * - auth-type 在 Geyser 2.x 里属 java 段，写成顶层键会被整段丢弃，Geyser 退回 online，
      *   基岩玩家于是被要求用 Java 正版账号登录，表现就是"开了互通但基岩版进不去"。
-     * - 基岩 26.60（2026-10-27）起客户端不再走 RakNet，改走 NetherNet（TCP 信令 + WebRTC/UDP）。
-     *   用 transport: nethernet + webrtc-port: 0，TCP/UDP 都落在 19132，玩家只填一个端口；
-     *   旧的 both + 19133 要多占一个 UDP 端口，路由器少开一个、或客户端缓存了旧连接信息就连不上。
+     * - 基岩 26.60 起客户端默认走 NetherNet（TCP 信令 + WebRTC/UDP）。但 1.26.60 有 Mojang 已知
+     *   bug MCPE-244019：连第三方 Geyser 报 Terracotta / InitialConnection-149 超时，服务器侧修不了。
+     *   为兼容老旧客户端，这里用 transport: both —— RakNet 仍走 19132（UDP），NetherNet 媒体走
+     *   19133（UDP），玩家把基岩版降到 26.59（RakNet）即可绕过 bug，所有客户端填的端口都还是 19132。
      * - java.port 必须跟随用户实际设置的 Java 端口，否则改了端口后 Geyser 连不上后端。
      */
     fun crossplayConfig(onlineMode: Boolean, javaPort: Int, advertiseIps: List<String> = emptyList()): String {
@@ -397,8 +398,8 @@ object Cores {
         return "bedrock:\n" +
         "  address: 0.0.0.0\n" +
         "  port: 19132\n" +
-        "  webrtc-port: 0\n" +
-        "  transport: nethernet\n" +
+        "  webrtc-port: 19133\n" +
+        "  transport: both\n" +
         "  clone-remote-port: false\n" +
         "  signaling:\n" +
         "    mode: builtin\n" +
@@ -428,10 +429,11 @@ object Cores {
             return
         }
         t = patchSection(t, "bedrock", "port", "19132")
-        // 基岩 26.60（2026-10-27）起客户端不再走 RakNet，改走 NetherNet（TCP 信令 + WebRTC/UDP）。
-        // 用 nethernet 单端口：TCP+UDP 都走 19132，玩家只填一个端口，少一层出错机会。
-        t = patchSection(t, "bedrock", "webrtc-port", "0")
-        t = patchSection(t, "bedrock", "transport", "nethernet")
+        // 基岩 26.60 客户端（NetherNet）有 Mojang 已知 bug MCPE-244019：连第三方 Geyser 报 149 超时，
+        // 服务器侧无法修复。改用 both 同时保留 RakNet（19132 UDP）与 NetherNet（19133 UDP 媒体），
+        // 玩家把基岩版降到 26.59（RakNet）即可绕过，端口仍填 19132。
+        t = patchSection(t, "bedrock", "webrtc-port", "19133")
+        t = patchSection(t, "bedrock", "transport", "both")
         t = patchSection(t, "bedrock", "clone-remote-port", "false")
         // 信令阶段告诉客户端"来这个地址连我"。留空时 Geyser 会通告本机所有地址 + STUN 猜的公网地址，
         // 手机在 Wi-Fi 的 NAT 后面时，客户端拿到公网地址却连不上，正是 Terracotta / InitialConnection-149 的成因。
