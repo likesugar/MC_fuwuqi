@@ -318,7 +318,7 @@ object Cores {
         // server.properties 由创建流程按用户配置写入（含 online-mode），这里只写 Geyser 的 config.yml
         // 信令地址必须显式给本机局域网 IP：留空时 Geyser 会通告 STUN 探到的公网地址，
         // 手机在 Wi-Fi NAT 后面没有端口转发，基岩客户端连过去就是 Terracotta / InitialConnection-149
-        ensureCrossplayConfig(dir, onlineMode, javaPort, ServerManager.localIp())
+        ensureCrossplayConfig(dir, onlineMode, javaPort, ServerManager.localIps())
         val bv = bedrockVersion(gjar)
         val gv = geyserVersion(gjar)
         val verLine = if (bv != null) "，对应基岩版 $bv" else ""
@@ -385,12 +385,15 @@ object Cores {
      *   旧的 both + 19133 要多占一个 UDP 端口，路由器少开一个、或客户端缓存了旧连接信息就连不上。
      * - java.port 必须跟随用户实际设置的 Java 端口，否则改了端口后 Geyser 连不上后端。
      */
-    fun crossplayConfig(onlineMode: Boolean, javaPort: Int, advertiseIp: String = ""): String {
-        // 始终通告 127.0.0.1：同一台手机开服又用基岩版连时，填 127.0.0.1 走本机回环，
-        // 不会触发 Android 对"LAN IP 出 wlan0 又回 wlan0"的 hairpin 限制（UDP 握手必失败）。
-        // 再补一个局域网 IP，给同一 WiFi 下别的设备用。
-        val adv = if (advertiseIp.isNotBlank() && advertiseIp != "127.0.0.1")
-            "[\"127.0.0.1:19132\", \"$advertiseIp:19132\"]" else "[\"127.0.0.1:19132\"]"
+    fun crossplayConfig(onlineMode: Boolean, javaPort: Int, advertiseIps: List<String> = emptyList()): String {
+        // 只用局域网 IP 做 advertise：同一台手机自连、同一 WiFi 其他设备，基岩版都填「这个 IP:19132」。
+        // 绝不要 127.0.0.1 —— WebRTC/ICE 会排除 loopback 候选，写进 advertise 反而让所有玩家（含本机）握手超时。
+        val valid = advertiseIps.filter { it.isNotBlank() && it != "127.0.0.1" }
+        val adv = if (valid.isNotEmpty())
+            valid.joinToString(", ", "[", "]") { "\"$it:19132\"" }
+        else "[]"
+        // 给了局域网地址就关 STUN（同机/局域网不需要打洞）；没给才靠 STUN 猜公网（多半连不上）
+        val stun = valid.isEmpty()
         return "bedrock:\n" +
         "  address: 0.0.0.0\n" +
         "  port: 19132\n" +
@@ -400,7 +403,7 @@ object Cores {
         "  signaling:\n" +
         "    mode: builtin\n" +
         "    advertise-addresses: $adv\n" +
-        "    stun-discovery: ${advertiseIp.isBlank()}\n" +
+        "    stun-discovery: $stun\n" +
         "java:\n" +
         "  address: 127.0.0.1\n" +
         "  port: $javaPort\n" +
@@ -410,18 +413,18 @@ object Cores {
     }
 
     /** 确保 Geyser 配置存在且关键项正确：新建的服写全量，老版本建过的服就地改几行，不覆盖用户自定义 */
-    fun ensureCrossplayConfig(dir: File, onlineMode: Boolean, javaPort: Int, advertiseIp: String = "") {
+    fun ensureCrossplayConfig(dir: File, onlineMode: Boolean, javaPort: Int, advertiseIps: List<String> = emptyList()) {
         val gdir = File(dir, "plugins/Geyser-Spigot").apply { mkdirs() }
         val f = File(gdir, "config.yml")
         val auth = if (onlineMode) "floodgate" else "offline"
         if (!f.isFile || f.length() == 0L) {
-            f.writeText(crossplayConfig(onlineMode, javaPort, advertiseIp))
+            f.writeText(crossplayConfig(onlineMode, javaPort, advertiseIps))
             return
         }
         var t = f.readText()
         // 老版本 App 写的配置：顶层 remote/auth-type 段（Geyser 2.x 不认），整份重写
         if (!Regex("(?m)^java:\\s*$").containsMatchIn(t)) {
-            f.writeText(crossplayConfig(onlineMode, javaPort, advertiseIp))
+            f.writeText(crossplayConfig(onlineMode, javaPort, advertiseIps))
             return
         }
         t = patchSection(t, "bedrock", "port", "19132")
@@ -433,7 +436,7 @@ object Cores {
         // 信令阶段告诉客户端"来这个地址连我"。留空时 Geyser 会通告本机所有地址 + STUN 猜的公网地址，
         // 手机在 Wi-Fi 的 NAT 后面时，客户端拿到公网地址却连不上，正是 Terracotta / InitialConnection-149 的成因。
         t = ensureSignalingBlock(t)
-        t = patchSignalingAddress(t, advertiseIp)
+        t = patchSignalingAddress(t, advertiseIps)
         t = patchSection(t, "java", "address", "127.0.0.1")
         t = patchSection(t, "java", "port", javaPort.toString())
         t = patchSection(t, "java", "auth-type", auth)
@@ -447,8 +450,10 @@ object Cores {
      * 客户端再连那个地址的 UDP。地址留空时 Geyser 会用 STUN 探到的公网地址，
      * 家用/热点网络通常没有端口转发 → 客户端连公网地址必然失败 → 报 Terracotta / 149。
      */
-    internal fun patchSignalingAddress(text: String, addr: String): String {
-        if (addr.isBlank()) return text
+    internal fun patchSignalingAddress(text: String, addrs: List<String>): String {
+        val valid = addrs.filter { it.isNotBlank() && it != "127.0.0.1" }
+        if (valid.isEmpty()) return text
+        val adv = valid.joinToString(", ", "[", "]") { "\"$it:19132\"" }
         val lines = text.lines().toMutableList()
         val sig = lines.indexOfFirst { it.trimEnd() == "  signaling:" }
         if (sig < 0) return text
@@ -459,9 +464,6 @@ object Cores {
             if (l.isNotBlank() && !l.startsWith("    ")) { end = i; break }
         }
         val at = (sig + 1 until end).firstOrNull { lines[it].trimStart().startsWith("advertise-addresses:") }
-        // 同机自连必须通告 127.0.0.1，否则基岩版填 LAN IP 时会卡在 UDP 握手（hairpin 被 Android 挡）
-        val adv = if (addr.isNotBlank() && addr != "127.0.0.1")
-            "[\"127.0.0.1:19132\", \"$addr:19132\"]" else "[\"127.0.0.1:19132\"]"
         if (at == null) {
             lines.add(sig + 1, "    advertise-addresses: $adv")
             return lines.joinToString("\n")

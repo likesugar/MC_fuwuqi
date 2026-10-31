@@ -147,12 +147,12 @@ class SettingsActivity : androidx.appcompat.app.AppCompatActivity() {
         hc.addView(Ui.text(this, "基岩版（手机 / 平板）", 16f, getColor(R.color.text), true).also {
             it.setPadding(0, Ui.px(this, 12), 0, 0) })
         hc.addView(Ui.text(this,
-            "「游戏 → 服务器 → 添加服务器」，端口填 19132；地址：若在同一台手机上开服又用基岩版连，填 127.0.0.1；若用同一 WiFi 下的另一台设备连，填上方显示的局域网 IP。首次连接弹「是否信任此服务器」选信任；客户端版本需与上面一致（不匹配会一直卡在“正在连接”）。",
+            "「游戏 → 服务器 → 添加服务器」，端口填 19132；地址填控制台显示的「基岩版连接地址」（局域网 IP:19132）—— 同一台手机自连、同一 WiFi 其他设备，都填这个地址。首次连接弹「是否信任此服务器」选信任；客户端版本需与控制台显示的对应版本一致（不匹配会一直卡在“正在连接”）。",
             13f, getColor(R.color.text_sub)).also { it.setPadding(0, Ui.px(this, 4), 0, 0) })
         hc.addView(Ui.text(this, "基岩 26.60 起改用 NetherNet", 16f, getColor(R.color.text), true).also {
             it.setPadding(0, Ui.px(this, 12), 0, 0) })
         hc.addView(Ui.text(this,
-            "26.60 起基岩客户端改走 NetherNet：需 19132 的 TCP 与 UDP 同时可达。最常见的“握手失败”是同一台手机自连时填了局域网 IP —— 流量从 wlan0 出去又回 wlan0 会被 Android 拦下，改用 127.0.0.1 即可。客户端缓存旧条目也会失败，删掉该服务器重新添加。",
+            "26.60 起基岩客户端改走 NetherNet（TCP 信令 + UDP WebRTC）。19132 的 TCP 和 UDP 都要通。若报“握手失败”：① 确认填的是局域网 IP:19132（不要填 127.0.0.1，回环地址 WebRTC 连不上）；② 删掉客户端里该服务器条目重新添加；③ 手机需连着 Wi-Fi 或开着热点（纯流量下没有局域网地址，无法自连）。",
             13f, getColor(R.color.text_sub)).also { it.setPadding(0, Ui.px(this, 4), 0, 0) })
         listWrap.addView(hc, Ui.lp(-1, -2).also { it.topMargin = Ui.px(this, 4) })
 
