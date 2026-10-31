@@ -18,11 +18,11 @@ jobs:
           java-version: '17'
       - name: Install Gradle
         run: |
-          curl -sL -o gradle.zip https://services.gradle.org/distributions/gradle-8.11.1-bin.zip
+          curl -sL -o gradle.zip https://services.gradle.org/distributions/gradle-8.13-bin.zip
           unzip -q gradle.zip
-          ./gradle-8.11.1/bin/gradle --version
+          ./gradle-8.13/bin/gradle --version
       - name: Build release APK
-        run: ./gradle-8.11.1/bin/gradle :app:assembleRelease --no-daemon
+        run: ./gradle-8.13/bin/gradle :app:assembleRelease --no-daemon
       - name: Rename APK
         run: mv app/build/outputs/apk/release/*.apk "MC-kai-fu-v1.0.apk"
       - name: Release APK

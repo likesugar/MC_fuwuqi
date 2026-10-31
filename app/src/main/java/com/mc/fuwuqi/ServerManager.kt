@@ -127,6 +127,13 @@ object ServerManager {
                         "online-mode=${srv.optBoolean("onlineMode", false)}\n" +
                         "difficulty=${srv.optString("difficulty", "easy")}\ngamemode=${srv.optString("gamemode", "survival")}\nenable-rcon=false\nspawn-protection=0\nview-distance=6\nsimulation-distance=4\nsync-chunk-writes=false\nuse-native-transport=true\nnetwork-compression-threshold=256\nmax-tick-time=-1\n")
                 }
+                // 互通服：每次启动校正 Geyser 配置（老版本 App 建的服会写成 Geyser 2.x 不认的旧键名）
+                if (srv.optString("core") == Cores.CROSSPLAY) {
+                    try {
+                        Cores.ensureCrossplayConfig(dir, srv.optBoolean("onlineMode", false), srv.optInt("port", 25565))
+                        emit("· 互通配置已校正：Geyser 基岩端口 19132（UDP）")
+                    } catch (e: Exception) { emit("· 互通配置校正失败：${e.message}") }
+                }
                 val mem = srv.optInt("memoryMb", 2048)
                 val flags = appCtx.getSharedPreferences("app", 0)
                     .getString("jvm_flags", DEFAULT_FLAGS) ?: DEFAULT_FLAGS

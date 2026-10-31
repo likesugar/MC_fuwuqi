@@ -70,9 +70,10 @@ class NewServerActivity3 : androidx.appcompat.app.AppCompatActivity() {
             root.addView(modeRow, root.indexOfChild(root.getChildAt(root.childCount-1)))
             refreshMode()
             root.addView(Ui.text(this,
-                "📱 互通服提示：基岩版（手机）玩家连接端口 19132。\n" +
+                "📱 互通服提示：基岩版（手机）玩家填「服务器 IP + 端口 19132」即可，局域网里也能直接搜到。\n" +
                 "· 正版模式：基岩玩家需 Xbox 账号验证，进服名字会带 \".\" 前缀，可公开 IP\n" +
-                "· 离线模式：任何人可直接进，仅限熟人使用，严禁公开 IP", 12.5f, getColor(R.color.text_sub)))
+                "· 离线模式：任何人可直接进，仅限熟人使用，严禁公开 IP\n" +
+                "· 外网联机：路由器需放行 UDP 19132（新版基岩客户端还会用 UDP 19133），端口写错的典型现象就是“一直显示正在连接”", 12.5f, getColor(R.color.text_sub)))
             (root.getChildAt(root.childCount - 1) as TextView).setPadding(Ui.px(this, 20), Ui.px(this, 10), Ui.px(this, 20), Ui.px(this, 4))
         }
         values["difficulty"] = difficulty
@@ -145,7 +146,7 @@ class NewServerActivity3 : androidx.appcompat.app.AppCompatActivity() {
                     val dir = Store.serverDir(o.optString("id")); dir.mkdirs()
                     Cores.download(core, version, dir) { s -> runOnUiThread { go.text = s } }
                     if (core == Cores.CROSSPLAY) {
-                        Cores.installCrossplayPlugins(dir, o.optBoolean("onlineMode", false)) { s -> runOnUiThread { go.text = s } }
+                        Cores.installCrossplayPlugins(dir, o.optBoolean("onlineMode", false), o.optInt("port", 25565)) { s -> runOnUiThread { go.text = s } }
                     }
                     // 把第 3 步的用户配置写入 server.properties（内存等 JVM 参数在启动时另用）
                     val propsFile = java.io.File(dir, "server.properties")

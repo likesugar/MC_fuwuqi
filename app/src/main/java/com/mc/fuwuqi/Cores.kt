@@ -183,24 +183,89 @@ object Cores {
     } catch (e: Exception) { listOf("26.3") }
 
     /** 互通服：下载 Geyser + Floodgate 插件并写配置（onlineMode=true 走 Xbox 验证可公开） */
-    fun installCrossplayPlugins(dir: File, onlineMode: Boolean, cb: (String) -> Unit) {
+    fun installCrossplayPlugins(dir: File, onlineMode: Boolean, javaPort: Int, cb: (String) -> Unit) {
         val plugins = File(dir, "plugins").apply { mkdirs() }
-        val gdir = File(plugins, "Geyser-Spigot").apply { mkdirs() }
+        File(plugins, "Geyser-Spigot").mkdirs()
         cb("下载 Geyser 互通插件 …")
         Dl.download("https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/spigot", File(plugins, "Geyser-Spigot.jar")) { _, _ -> }
         cb("下载 Floodgate 插件 …")
         Dl.download("https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest/downloads/spigot", File(plugins, "Floodgate-Spigot.jar")) { _, _ -> }
-        val auth = if (onlineMode) "floodgate" else "offline"
         // server.properties 由创建流程按用户配置写入（含 online-mode），这里只写 Geyser 的 config.yml
-        File(gdir, "config.yml").writeText(
-            "floodgate-key-file: \"./floodgate/key.pem\"\n" +
-            "remote:\n  address: 127.0.0.1\n  port: 25565\n" +
-            "bedrock:\n  port: 19132\n" +
-            "auth-type: $auth\n")
+        ensureCrossplayConfig(dir, onlineMode, javaPort)
         cb(if (onlineMode)
             "互通插件安装完成：基岩玩家需 Xbox 验证（名字带 . 前缀），可公开 IP"
         else
             "互通插件安装完成：离线模式，任何人可直接进，严禁公开 IP")
+    }
+
+    /**
+     * Geyser 2.x 的配置骨架。
+     *
+     * 注意（2026-10 线上问题复盘）：
+     * - auth-type 在 Geyser 2.x 里属 java 段，写成顶层键会被整段丢弃，Geyser 退回 online，
+     *   基岩玩家于是被要求用 Java 正版账号登录，表现就是"开了互通但基岩版进不去"。
+     * - Geyser 2.12 起 bedrock.transport 默认 nethernet，手机版"添加服务器"直连 IP:19132
+     *   走 RakNet 探测，收不到回应（局域网也搜不到）；改成 both 且给 NetherNet 单独端口后
+     *   两条链路都能连。
+     * - java.port 必须跟随用户实际设置的 Java 端口，否则改了端口后 Geyser 连不上后端。
+     */
+    fun crossplayConfig(onlineMode: Boolean, javaPort: Int): String =
+        "bedrock:\n" +
+        "  address: 0.0.0.0\n" +
+        "  port: 19132\n" +
+        "  webrtc-port: 19133\n" +
+        "  transport: both\n" +
+        "  clone-remote-port: false\n" +
+        "java:\n" +
+        "  address: 127.0.0.1\n" +
+        "  port: $javaPort\n" +
+        "  auth-type: ${if (onlineMode) "floodgate" else "offline"}\n" +
+        "advanced:\n" +
+        "  floodgate-key-file: ../floodgate/key.pem\n"
+
+    /** 确保 Geyser 配置存在且关键项正确：新建的服写全量，老版本建过的服就地改几行，不覆盖用户自定义 */
+    fun ensureCrossplayConfig(dir: File, onlineMode: Boolean, javaPort: Int) {
+        val gdir = File(dir, "plugins/Geyser-Spigot").apply { mkdirs() }
+        val f = File(gdir, "config.yml")
+        val auth = if (onlineMode) "floodgate" else "offline"
+        if (!f.isFile || f.length() == 0L) {
+            f.writeText(crossplayConfig(onlineMode, javaPort))
+            return
+        }
+        var t = f.readText()
+        // 老版本 App 写的配置：顶层 remote/auth-type 段（Geyser 2.x 不认），整份重写
+        if (!Regex("(?m)^java:\\s*$").containsMatchIn(t)) {
+            f.writeText(crossplayConfig(onlineMode, javaPort))
+            return
+        }
+        t = patchSection(t, "bedrock", "port", "19132")
+        t = patchSection(t, "bedrock", "webrtc-port", "19133")
+        t = patchSection(t, "bedrock", "transport", "both")
+        t = patchSection(t, "java", "address", "127.0.0.1")
+        t = patchSection(t, "java", "port", javaPort.toString())
+        t = patchSection(t, "java", "auth-type", auth)
+        f.writeText(t)
+    }
+
+    /** 只改 YAML 里某一段（两空格缩进）下的某个键；键不存在则插到该段最后一个缩进行之后 */
+    internal fun patchSection(text: String, section: String, key: String, value: String): String {
+        val lines = text.lines().toMutableList()
+        val sec = lines.indexOfFirst { it.trimEnd() == "$section:" }
+        if (sec < 0) return text
+        var end = lines.size
+        for (i in sec + 1 until lines.size) {
+            val l = lines[i]
+            if (l.isNotEmpty() && !l[0].isWhitespace() && !l.startsWith("#")) { end = i; break }
+        }
+        val idx = (sec + 1 until end).firstOrNull { lines[it].trimStart().startsWith("$key:") }
+        if (idx != null) {
+            lines[idx] = "  $key: $value"
+        } else {
+            var ins = sec + 1
+            for (i in sec + 1 until end) if (lines[i].startsWith(" ")) ins = i + 1
+            lines.add(ins, "  $key: $value")
+        }
+        return lines.joinToString("\n")
     }
 
 }

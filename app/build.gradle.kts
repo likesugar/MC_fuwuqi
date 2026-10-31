@@ -34,8 +34,8 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
-    defaultConfig {
-        resourceConfigurations += listOf("zh", "en")
+    androidResources {
+        localeFilters += listOf("zh", "en")
     }
     lint {
         checkReleaseBuilds = false
