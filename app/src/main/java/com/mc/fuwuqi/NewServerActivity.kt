@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -26,6 +27,7 @@ class NewServerActivity : androidx.appcompat.app.AppCompatActivity() {
     private lateinit var search: EditText
     private lateinit var listWrap: LinearLayout
     private lateinit var nextBtn: TextView
+    private lateinit var crossTip: TextView
 
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
@@ -41,6 +43,12 @@ class NewServerActivity : androidx.appcompat.app.AppCompatActivity() {
         chips.setPadding(0, Ui.px(this, 6), 0, 0)
         buildChips()
         content.addView(chips)
+
+        // 选了互通服就在版本列表上方显示"对应基岩版版本"，避免手机端版本不匹配一直连不上
+        crossTip = Ui.text(this, "", 12.5f, getColor(R.color.green))
+        crossTip.setPadding(Ui.px(this, 4), Ui.px(this, 10), Ui.px(this, 4), 0)
+        content.addView(crossTip)
+        refreshCrossTip()
 
         search = EditText(this)
         search.hint = "搜索版本，例如 1.21 或 1.20.4"
@@ -95,10 +103,30 @@ class NewServerActivity : androidx.appcompat.app.AppCompatActivity() {
             sub.setPadding(0, Ui.px(this, 3), 0, 0)
             c.addView(sub)
             val lp = Ui.lp(0, -2, 1f)
-            c.setOnClickListener { if (!loading && core != name.first) { core = name.first; chosen = null; buildChips(); load() } }
+            c.setOnClickListener { if (!loading && core != name.first) { core = name.first; chosen = null; buildChips(); refreshCrossTip(); load() } }
             val p = lp; p.width = Ui.px(this, 96); p.rightMargin = Ui.px(this, 8)
             chips.addView(c, p)
         }
+    }
+
+    /** 互通服：显示 Geyser 对应的基岩版版本（本机装过互通服就能立刻读到，否则创建时下载后确定） */
+    private fun refreshCrossTip() {
+        if (core != Cores.CROSSPLAY) { crossTip.visibility = View.GONE; return }
+        crossTip.visibility = View.VISIBLE
+        crossTip.text = "📱 基岩版对应版本：检测中 …"
+        Thread {
+            val jar = Cores.installedGeyserJar()
+            val bv = jar?.let { Cores.bedrockVersion(it) }
+            val gv = jar?.let { Cores.geyserVersion(it) }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (core != Cores.CROSSPLAY) return@runOnUiThread
+                crossTip.text = if (bv != null)
+                    "📱 基岩版对应版本：$bv" + (if (gv != null) "（Geyser $gv）" else "") + " —— 手机端必须同版本才能进服"
+                else
+                    "📱 基岩版对应版本：创建时自动检测。Geyser 只支持一个基岩版版本，版本不匹配会一直卡在“正在连接”"
+            }
+        }.start()
     }
 
     private fun load() {

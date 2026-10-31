@@ -134,6 +134,40 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
             addServerCard(o, false)
         }
         if (!any && ServerManager.runningId == null) addEmpty()
+        backfillBedrockVersion()
+    }
+
+    private var backfilling = false
+
+    /** 老互通服没有记录基岩版版本：后台从已装的 Geyser 插件补一次，补到就刷新列表 */
+    private fun backfillBedrockVersion() {
+        if (backfilling) return
+        val arr0 = Store.loadServers()
+        var need = false
+        for (i in 0 until arr0.length()) {
+            val o = arr0.optJSONObject(i) ?: continue
+            if (o.optString("core") == Cores.CROSSPLAY && o.optString("bedrockVersion").isEmpty()) { need = true; break }
+        }
+        if (!need) return
+        backfilling = true
+        Thread {
+            try {
+                val arr = Store.loadServers()
+                var changed = false
+                for (i in 0 until arr.length()) {
+                    val o = arr.optJSONObject(i) ?: continue
+                    if (o.optString("core") != Cores.CROSSPLAY) continue
+                    if (o.optString("bedrockVersion").isNotEmpty()) continue
+                    val jar = java.io.File(Store.serverDir(o.optString("id")), "plugins/Geyser-Spigot.jar")
+                    val bv = Cores.bedrockVersion(jar) ?: continue
+                    o.put("bedrockVersion", bv)
+                    Cores.geyserVersion(jar)?.let { o.put("geyserVersion", it) }
+                    changed = true
+                }
+                if (changed) Store.saveServers(arr)
+            } catch (_: Exception) {
+            } finally { backfilling = false }
+        }.start()
     }
 
     private fun autoExtractContainer() {
@@ -213,7 +247,11 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
         row.gravity = Gravity.CENTER_VERTICAL
         val nameCol = Ui.linear(this, true)
         nameCol.addView(Ui.text(this, o.optString("name", "服务器"), 17f, getColor(R.color.text), true))
-        val dot = if (running) "● 运行中" else "○ ${o.optString("core")} ${o.optString("mcVersion")} · :${o.optInt("port", 25565)}"
+        val isCross = o.optString("core") == Cores.CROSSPLAY
+        val bv = o.optString("bedrockVersion")
+        val crossTag = if (isCross) " · " + (if (bv.isEmpty()) "基岩 :19132" else "基岩 $bv") else ""
+        val dot = if (running) "● 运行中 · :${o.optInt("port", 25565)}$crossTag"
+            else "○ ${o.optString("core")} ${o.optString("mcVersion")} · :${o.optInt("port", 25565)}$crossTag"
         val st = Ui.text(this, dot, 13f, if (running) getColor(R.color.green) else getColor(R.color.text_sub))
         st.setPadding(0, Ui.px(this, 4), 0, 0)
         nameCol.addView(st)

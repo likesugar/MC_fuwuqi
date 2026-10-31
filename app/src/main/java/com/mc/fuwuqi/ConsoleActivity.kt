@@ -29,6 +29,8 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
     private lateinit var stopBtn: TextView
     private lateinit var addrCard: LinearLayout
     private lateinit var addrText: TextView
+    private lateinit var bedrockText: TextView
+    private lateinit var connHint: TextView
     private lateinit var listenState: TextView
     private lateinit var input: EditText
     private lateinit var quick: LinearLayout
@@ -37,6 +39,7 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
     private lateinit var perfHandler: android.os.Handler
     private lateinit var perfTick: Runnable
     private var readyNotified = false
+    private var bvLoading = false
 
     private val lineCb: (String) -> Unit = { line ->
         runOnUiThread {
@@ -145,11 +148,25 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
         addrCard.setOnClickListener { doCopy() }
         addrText.setOnClickListener { doCopy() }
         copyHint.setOnClickListener { doCopy() }
+        // 互通服：单独一行给基岩版（手机/平板）地址与对应版本
+        bedrockText = Ui.text(this, "", 13f, getColor(R.color.text_sub))
+        bedrockText.setPadding(0, Ui.px(this, 8), 0, 0)
+        addrCard.addView(bedrockText)
+        bedrockText.setOnClickListener {
+            val a = bedrockText.tag?.toString().orEmpty()
+            if (a.isEmpty()) {
+                Ui.toast(this, "服务器未运行，暂无基岩地址")
+            } else {
+                getSystemService(ClipboardManager::class.java)
+                    .setPrimaryClip(ClipData.newPlainText("bedrock", a))
+                Ui.toast(this, "已复制基岩地址：$a")
+            }
+        }
         root.addView(addrCard, Ui.lp(-1, -2).also { (it as LinearLayout.LayoutParams).setMargins(Ui.px(this, 20), 0, Ui.px(this, 20), 0) })
 
-        val hint = Ui.text(this, "同一 WiFi 下，朋友在「多人游戏 → 直接连接」输入上面地址即可。端口不通时先看日志有没有 Done。", 12f, getColor(R.color.text_sub))
-        hint.setPadding(Ui.px(this, 24), Ui.px(this, 10), Ui.px(this, 24), 0)
-        root.addView(hint)
+        connHint = Ui.text(this, "同一 WiFi 下，朋友在「多人游戏 → 直接连接」输入上面地址即可。端口不通时先看日志有没有 Done。", 12f, getColor(R.color.text_sub))
+        connHint.setPadding(Ui.px(this, 24), Ui.px(this, 10), Ui.px(this, 24), 0)
+        root.addView(connHint)
 
         // 性能面板（12/5）：CPU / 内存 实时
         perfText = Ui.text(this, "", 12f, getColor(R.color.text_sub))
@@ -338,6 +355,38 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
         stopBtn.setTextColor(getColor(if (running) R.color.danger else R.color.green))
         val ip = ServerManager.localIp()
         addrText.text = if (running && ip.isNotEmpty()) "$ip:$port" else "—"
+        // 互通服：显示基岩版地址 + 这版 Geyser 支持的基岩版版本
+        val isCross = srv.optString("core") == Cores.CROSSPLAY
+        val bv = srv.optString("bedrockVersion")
+        if (isCross) {
+            val baddr = if (running && ip.isNotEmpty()) "$ip:19132" else ""
+            bedrockText.visibility = View.VISIBLE
+            bedrockText.text = "基岩版（手机/平板）：${baddr.ifEmpty { "—" }} · 对应版本 " +
+                bv.ifEmpty { "识别中…" } + if (baddr.isNotEmpty()) "（点击复制）" else ""
+            bedrockText.tag = baddr
+            if (bv.isEmpty() && !bvLoading) {
+                bvLoading = true
+                Thread {
+                    try {
+                        val jar = java.io.File(Store.serverDir(id), "plugins/Geyser-Spigot.jar")
+                        Cores.bedrockVersion(jar)?.let { v ->
+                            Store.updateServer(id, JSONObject().put("bedrockVersion", v))
+                            if (!isFinishing && !isDestroyed) runOnUiThread { render() }
+                        }
+                    } catch (_: Exception) {
+                    } finally { bvLoading = false }
+                }.start()
+            }
+        } else {
+            bedrockText.visibility = View.GONE
+            bedrockText.tag = ""
+        }
+        connHint.text = if (isCross)
+            "Java 版：朋友在「多人游戏 → 直接连接」输上面的地址。\n" +
+            "基岩版（手机/平板）：「游戏 → 服务器 → 添加服务器」，地址填 IP，端口填 19132，" +
+            "客户端版本需与上面一致（版本不匹配会一直卡在“正在连接”）。"
+        else
+            "同一 WiFi 下，朋友在「多人游戏 → 直接连接」输入上面地址即可。端口不通时先看日志有没有 Done。"
         listenState.text = if (running) "● 端口已监听" else "○ 未运行"
         listenState.setTextColor(getColor(if (running) R.color.green else R.color.text_sub))
         buildQuick(running)

@@ -182,20 +182,94 @@ object Cores {
         listOf(all.last().groupValues[1])
     } catch (e: Exception) { listOf("26.3") }
 
+    /** 互通插件解析结果 */
+    data class Crossplay(val bedrockVersion: String?, val geyserVersion: String?)
+
+    // 版本解析结果缓存（key = jar 路径|大小|修改时间），避免反复读几十 MB 的 jar
+    private val bvCache = HashMap<String, String?>()
+
+    /**
+     * Geyser 插件对应的基岩版版本。
+     *
+     * Geyser 的 jar 里每个基岩协议都带一个 `Bedrock_vXXXX.class`，类里写着自己对应的
+     * Minecraft 版本串（如 1.26.60）；取其中最大的一个，就是这版 Geyser 支持的基岩端版本。
+     * 实测与服务器 RakNet pong 回报的版本一致（1.26.60 ↔ 协议 2225），所以不需要联网、
+     * 也不需要先启动服务器。
+     */
+    fun bedrockVersion(jar: File): String? {
+        if (!jar.isFile || jar.length() < 1024) return null
+        val key = "${jar.absolutePath}|${jar.length()}|${jar.lastModified()}"
+        synchronized(bvCache) { bvCache[key]?.let { return it } }
+        val v = try {
+            java.util.zip.ZipFile(jar).use { z ->
+                var best: String? = null
+                val nameRe = Regex("""^Bedrock_v\d+(_hotfix\d+)?\.class$""")
+                val verRe = Regex("""1\.\d{1,2}\.\d{1,2}""")
+                for (e in z.entries()) {
+                    if (!nameRe.matches(e.name.substringAfterLast('/'))) continue
+                    val s = String(z.getInputStream(e).readBytes(), Charsets.ISO_8859_1)
+                    for (m in verRe.findAll(s)) {
+                        if (best == null || verCmp(m.value, best) > 0) best = m.value
+                    }
+                }
+                best
+            }
+        } catch (_: Exception) { null }
+        synchronized(bvCache) { bvCache[key] = v }
+        return v
+    }
+
+    /** Geyser 插件自身版本（BuildData 里的 2.12.1-b1279），解析不到就返回 null */
+    fun geyserVersion(jar: File): String? = try {
+        if (!jar.isFile) null else java.util.zip.ZipFile(jar).use { z ->
+            val e = z.getEntry("org/geysermc/geyser/BuildData.class") ?: return null
+            val s = String(z.getInputStream(e).readBytes(), Charsets.ISO_8859_1)
+            Regex("""\d+\.\d+\.\d+-b\d+""").find(s)?.value
+        }
+    } catch (_: Exception) { null }
+
+    /** 版本号按数值逐段比较（1.26.60 > 1.9.0） */
+    fun verCmp(a: String, b: String): Int {
+        val x = a.split('.').map { it.toIntOrNull() ?: 0 }
+        val y = b.split('.').map { it.toIntOrNull() ?: 0 }
+        for (i in 0 until maxOf(x.size, y.size)) {
+            val d = (x.getOrNull(i) ?: 0) - (y.getOrNull(i) ?: 0)
+            if (d != 0) return d
+        }
+        return 0
+    }
+
+    /** 本机任意一个互通服里已装好的 Geyser 插件（用于创建前预显示基岩版版本） */
+    fun installedGeyserJar(): File? {
+        val arr = try { Store.loadServers() } catch (_: Exception) { return null }
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            if (o.optString("core") != CROSSPLAY) continue
+            val f = File(Store.serverDir(o.optString("id")), "plugins/Geyser-Spigot.jar")
+            if (f.isFile) return f
+        }
+        return null
+    }
+
     /** 互通服：下载 Geyser + Floodgate 插件并写配置（onlineMode=true 走 Xbox 验证可公开） */
-    fun installCrossplayPlugins(dir: File, onlineMode: Boolean, javaPort: Int, cb: (String) -> Unit) {
+    fun installCrossplayPlugins(dir: File, onlineMode: Boolean, javaPort: Int, cb: (String) -> Unit): Crossplay {
         val plugins = File(dir, "plugins").apply { mkdirs() }
         File(plugins, "Geyser-Spigot").mkdirs()
         cb("下载 Geyser 互通插件 …")
-        Dl.download("https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/spigot", File(plugins, "Geyser-Spigot.jar")) { _, _ -> }
+        val gjar = File(plugins, "Geyser-Spigot.jar")
+        Dl.download("https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/spigot", gjar) { _, _ -> }
         cb("下载 Floodgate 插件 …")
         Dl.download("https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest/downloads/spigot", File(plugins, "Floodgate-Spigot.jar")) { _, _ -> }
         // server.properties 由创建流程按用户配置写入（含 online-mode），这里只写 Geyser 的 config.yml
         ensureCrossplayConfig(dir, onlineMode, javaPort)
+        val bv = bedrockVersion(gjar)
+        val gv = geyserVersion(gjar)
+        val verLine = if (bv != null) "，对应基岩版 $bv" else ""
         cb(if (onlineMode)
-            "互通插件安装完成：基岩玩家需 Xbox 验证（名字带 . 前缀），可公开 IP"
+            "互通插件安装完成$verLine：基岩玩家需 Xbox 验证（名字带 . 前缀），可公开 IP"
         else
-            "互通插件安装完成：离线模式，任何人可直接进，严禁公开 IP")
+            "互通插件安装完成$verLine：离线模式，任何人可直接进，严禁公开 IP")
+        return Crossplay(bv, gv)
     }
 
     /**

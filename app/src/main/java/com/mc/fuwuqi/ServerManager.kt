@@ -133,6 +133,12 @@ object ServerManager {
                         Cores.ensureCrossplayConfig(dir, srv.optBoolean("onlineMode", false), srv.optInt("port", 25565))
                         emit("· 互通配置已校正：Geyser 基岩端口 19132（UDP）")
                     } catch (e: Exception) { emit("· 互通配置校正失败：${e.message}") }
+                    // 这版 Geyser 支持的基岩版版本：手机端必须一致，否则一直卡在“正在连接”
+                    Cores.bedrockVersion(File(dir, "plugins/Geyser-Spigot.jar"))?.let { bv ->
+                        emit("· 基岩版对应版本 $bv（手机端需同版本，地址 IP:19132）")
+                        if (bv != srv.optString("bedrockVersion"))
+                            Store.updateServer(srv.optString("id"), JSONObject().put("bedrockVersion", bv))
+                    }
                 }
                 val mem = srv.optInt("memoryMb", 2048)
                 val flags = appCtx.getSharedPreferences("app", 0)

@@ -67,7 +67,7 @@ class NewServerActivity3 : androidx.appcompat.app.AppCompatActivity() {
             val modeParams = android.widget.LinearLayout.LayoutParams(
                 android.widget.LinearLayout.LayoutParams.MATCH_PARENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
             modeParams.setMargins(Ui.px(this,20), 0, Ui.px(this,20), Ui.px(this,4))
-            root.addView(modeRow, root.indexOfChild(root.getChildAt(root.childCount-1)))
+            root.addView(modeRow, modeParams)
             refreshMode()
             root.addView(Ui.text(this,
                 "📱 互通服提示：基岩版（手机）玩家填「服务器 IP + 端口 19132」即可，局域网里也能直接搜到。\n" +
@@ -75,6 +75,23 @@ class NewServerActivity3 : androidx.appcompat.app.AppCompatActivity() {
                 "· 离线模式：任何人可直接进，仅限熟人使用，严禁公开 IP\n" +
                 "· 外网联机：路由器需放行 UDP 19132（新版基岩客户端还会用 UDP 19133），端口写错的典型现象就是“一直显示正在连接”", 12.5f, getColor(R.color.text_sub)))
             (root.getChildAt(root.childCount - 1) as TextView).setPadding(Ui.px(this, 20), Ui.px(this, 10), Ui.px(this, 20), Ui.px(this, 4))
+            // 基岩版版本：手机端版本必须与 Geyser 支持的版本一致，否则一直卡在“正在连接”
+            val bvText = Ui.text(this, "· 基岩版版本：检测中 …", 12.5f, getColor(R.color.green), true)
+            bvText.setPadding(Ui.px(this, 20), 0, Ui.px(this, 20), Ui.px(this, 4))
+            root.addView(bvText)
+            Thread {
+                val jar = Cores.installedGeyserJar()
+                val bv = jar?.let { Cores.bedrockVersion(it) }
+                val gv = jar?.let { Cores.geyserVersion(it) }
+                runOnUiThread {
+                    if (isFinishing || isDestroyed) return@runOnUiThread
+                    bvText.text = when {
+                        bv != null -> "· 基岩版版本：$bv" +
+                            (if (gv != null) "（Geyser $gv）" else "") + " —— 手机端必须是这个版本才能进服"
+                        else -> "· 基岩版版本：创建完成后自动显示（手机端需与 Geyser 支持的版本一致）"
+                    }
+                }
+            }.start()
         }
         values["difficulty"] = difficulty
         values["gamemode"] = gamemode
@@ -145,8 +162,15 @@ class NewServerActivity3 : androidx.appcompat.app.AppCompatActivity() {
                     val arr = Store.loadServers(); arr.put(o); Store.saveServers(arr)
                     val dir = Store.serverDir(o.optString("id")); dir.mkdirs()
                     Cores.download(core, version, dir) { s -> runOnUiThread { go.text = s } }
+                    var cross: Cores.Crossplay? = null
                     if (core == Cores.CROSSPLAY) {
-                        Cores.installCrossplayPlugins(dir, o.optBoolean("onlineMode", false), o.optInt("port", 25565)) { s -> runOnUiThread { go.text = s } }
+                        cross = Cores.installCrossplayPlugins(dir, o.optBoolean("onlineMode", false), o.optInt("port", 25565)) { s -> runOnUiThread { go.text = s } }
+                        // 记下这版 Geyser 支持的基岩版版本：首页卡片、控制台页都靠它显示
+                        cross?.bedrockVersion?.let { bv ->
+                            o.put("bedrockVersion", bv)
+                            Store.updateServer(o.optString("id"),
+                                JSONObject().put("bedrockVersion", bv).put("geyserVersion", cross?.geyserVersion ?: ""))
+                        }
                     }
                     // 把第 3 步的用户配置写入 server.properties（内存等 JVM 参数在启动时另用）
                     val propsFile = java.io.File(dir, "server.properties")
@@ -163,7 +187,8 @@ class NewServerActivity3 : androidx.appcompat.app.AppCompatActivity() {
                         existing.add(0, "online-mode=${o.optBoolean("onlineMode", false)}")
                     propsFile.writeText(existing.joinToString("\n") + "\n")
                     runOnUiThread {
-                        Ui.toast(this, "创建完成")
+                        val bv = o.optString("bedrockVersion")
+                        Ui.toast(this, if (bv.isNotEmpty()) "创建完成 · 基岩版 $bv（端口 19132）" else "创建完成")
                         val i3 = Intent(this, ConsoleActivity::class.java).putExtra("id", o.optString("id"))
                         startActivity(i3)
                         finish()
