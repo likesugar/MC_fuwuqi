@@ -265,8 +265,8 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
         following = true
         readyNotified = ServerManager.isRunning(id)
         if (!readyNotified && ServerManager.consoleText().isBlank()) {
-            logView.gravity = Gravity.CENTER
-            logView.text = "\n服务器未启动\n\n点右上角「启动」开始开服\n"
+            logView.gravity = Gravity.LEFT
+            logView.text = ""
         } else {
             ServerManager.consoleText().split('\n').forEach { if (it.isNotBlank()) appendColored(it, lineColor(it)) }
             logView.gravity = Gravity.LEFT

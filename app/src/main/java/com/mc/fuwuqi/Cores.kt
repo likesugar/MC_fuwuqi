@@ -316,7 +316,9 @@ object Cores {
         Dl.download("https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest/downloads/spigot", File(plugins, "Floodgate-Spigot.jar")) { _, _ -> }
         ensureViaVersion(dir, cb)
         // server.properties 由创建流程按用户配置写入（含 online-mode），这里只写 Geyser 的 config.yml
-        ensureCrossplayConfig(dir, onlineMode, javaPort)
+        // 信令地址必须显式给本机局域网 IP：留空时 Geyser 会通告 STUN 探到的公网地址，
+        // 手机在 Wi-Fi NAT 后面没有端口转发，基岩客户端连过去就是 Terracotta / InitialConnection-149
+        ensureCrossplayConfig(dir, onlineMode, javaPort, ServerManager.localIp())
         val bv = bedrockVersion(gjar)
         val gv = geyserVersion(gjar)
         val verLine = if (bv != null) "，对应基岩版 $bv" else ""
@@ -383,33 +385,39 @@ object Cores {
      *   旧的 both + 19133 要多占一个 UDP 端口，路由器少开一个、或客户端缓存了旧连接信息就连不上。
      * - java.port 必须跟随用户实际设置的 Java 端口，否则改了端口后 Geyser 连不上后端。
      */
-    fun crossplayConfig(onlineMode: Boolean, javaPort: Int): String =
-        "bedrock:\n" +
+    fun crossplayConfig(onlineMode: Boolean, javaPort: Int, advertiseIp: String = ""): String {
+        val adv = if (advertiseIp.isNotBlank()) "[\"$advertiseIp:19132\"]" else "[]"
+        return "bedrock:\n" +
         "  address: 0.0.0.0\n" +
         "  port: 19132\n" +
         "  webrtc-port: 0\n" +
         "  transport: nethernet\n" +
         "  clone-remote-port: false\n" +
+        "  signaling:\n" +
+        "    mode: builtin\n" +
+        "    advertise-addresses: $adv\n" +
+        "    stun-discovery: ${advertiseIp.isBlank()}\n" +
         "java:\n" +
         "  address: 127.0.0.1\n" +
         "  port: $javaPort\n" +
         "  auth-type: ${if (onlineMode) "floodgate" else "offline"}\n" +
         "advanced:\n" +
         "  floodgate-key-file: ../floodgate/key.pem\n"
+    }
 
     /** 确保 Geyser 配置存在且关键项正确：新建的服写全量，老版本建过的服就地改几行，不覆盖用户自定义 */
-    fun ensureCrossplayConfig(dir: File, onlineMode: Boolean, javaPort: Int) {
+    fun ensureCrossplayConfig(dir: File, onlineMode: Boolean, javaPort: Int, advertiseIp: String = "") {
         val gdir = File(dir, "plugins/Geyser-Spigot").apply { mkdirs() }
         val f = File(gdir, "config.yml")
         val auth = if (onlineMode) "floodgate" else "offline"
         if (!f.isFile || f.length() == 0L) {
-            f.writeText(crossplayConfig(onlineMode, javaPort))
+            f.writeText(crossplayConfig(onlineMode, javaPort, advertiseIp))
             return
         }
         var t = f.readText()
         // 老版本 App 写的配置：顶层 remote/auth-type 段（Geyser 2.x 不认），整份重写
         if (!Regex("(?m)^java:\\s*$").containsMatchIn(t)) {
-            f.writeText(crossplayConfig(onlineMode, javaPort))
+            f.writeText(crossplayConfig(onlineMode, javaPort, advertiseIp))
             return
         }
         t = patchSection(t, "bedrock", "port", "19132")
@@ -417,10 +425,70 @@ object Cores {
         // 用 nethernet 单端口：TCP+UDP 都走 19132，玩家只填一个端口，少一层出错机会。
         t = patchSection(t, "bedrock", "webrtc-port", "0")
         t = patchSection(t, "bedrock", "transport", "nethernet")
+        t = patchSection(t, "bedrock", "clone-remote-port", "false")
+        // 信令阶段告诉客户端"来这个地址连我"。留空时 Geyser 会通告本机所有地址 + STUN 猜的公网地址，
+        // 手机在 Wi-Fi 的 NAT 后面时，客户端拿到公网地址却连不上，正是 Terracotta / InitialConnection-149 的成因。
+        t = ensureSignalingBlock(t)
+        t = patchSignalingAddress(t, advertiseIp)
         t = patchSection(t, "java", "address", "127.0.0.1")
         t = patchSection(t, "java", "port", javaPort.toString())
         t = patchSection(t, "java", "auth-type", auth)
         f.writeText(t)
+    }
+
+    /**
+     * 把 bedrock.signaling.advertise-addresses 固定成本机局域网地址。
+     *
+     * 这是 NetherNet 的关键一步：客户端先走 TCP 信令问"服务器在哪"，服务端回一个地址，
+     * 客户端再连那个地址的 UDP。地址留空时 Geyser 会用 STUN 探到的公网地址，
+     * 家用/热点网络通常没有端口转发 → 客户端连公网地址必然失败 → 报 Terracotta / 149。
+     */
+    internal fun patchSignalingAddress(text: String, addr: String): String {
+        if (addr.isBlank()) return text
+        val lines = text.lines().toMutableList()
+        val sig = lines.indexOfFirst { it.trimEnd() == "  signaling:" }
+        if (sig < 0) return text
+        // signaling 段范围：后续非空且不是四空格缩进的行即为段结束
+        var end = lines.size
+        for (i in sig + 1 until lines.size) {
+            val l = lines[i]
+            if (l.isNotBlank() && !l.startsWith("    ")) { end = i; break }
+        }
+        val at = (sig + 1 until end).firstOrNull { lines[it].trimStart().startsWith("advertise-addresses:") }
+        if (at == null) {
+            lines.add(sig + 1, "    advertise-addresses: [\"$addr:19132\"]")
+            return lines.joinToString("\n")
+        }
+        // 旧值可能是 []，也可能是多行列表，一并清掉
+        var stop = at + 1
+        while (stop < end && lines[stop].trimStart().startsWith("-")) stop++
+        lines[at] = "    advertise-addresses: [\"$addr:19132\"]"
+        if (stop > at + 1) lines.subList(at + 1, stop).clear()
+        return lines.joinToString("\n")
+    }
+
+    /**
+     * 老配置里可能没有 signaling 段（早期 Geyser 没有这个键），补一份最小可用骨架。
+     * 已有该段则原样保留，交给 patchSignalingAddress 只改地址那一行。
+     */
+    internal fun ensureSignalingBlock(text: String): String {
+        if (text.lines().any { it.trimEnd() == "  signaling:" }) return text
+        val lines = text.lines().toMutableList()
+        val bed = lines.indexOfFirst { it.trimEnd() == "bedrock:" }
+        if (bed < 0) return text
+        var end = lines.size
+        for (i in bed + 1 until lines.size) {
+            val l = lines[i]
+            if (l.isNotBlank() && !l.startsWith(" ")) { end = i; break }
+        }
+        var ins = bed + 1
+        for (i in bed + 1 until end) if (lines[i].startsWith(" ")) ins = i + 1
+        lines.addAll(ins, listOf(
+            "  signaling:",
+            "    mode: builtin",
+            "    advertise-addresses: []",
+            "    stun-discovery: true"))
+        return lines.joinToString("\n")
     }
 
     /** 只改 YAML 里某一段（两空格缩进）下的某个键；键不存在则插到该段最后一个缩进行之后 */

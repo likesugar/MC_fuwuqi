@@ -72,17 +72,34 @@ object ServerManager {
     }
     fun isRunning(id: String): Boolean = runningId == id && proc?.isAlive == true
 
-    fun localIp(): String = try {
-        var found = ""
-        val nis = NetworkInterface.getNetworkInterfaces()
-        for (ni in nis) {
-            for (ia in ni.inetAddresses) {
-                if (!ia.isLoopbackAddress && ia is Inet4Address) { found = ia.hostAddress ?: ""; break }
+    /**
+     * 本机局域网 IPv4。
+     *
+     * 优先 Wi-Fi / 热点接口：蜂窝接口（rmnet/ccmni/pdp）拿到的是运营商内网地址，
+     * 局域网里的玩家根本连不上；VPN（tun/ppp）同理。这个地址既用于界面上显示，
+     * 也写进 Geyser 的 signaling.advertise-addresses —— 基岩客户端就是照它去连的。
+     */
+    fun localIp(): String {
+        var fallback = ""
+        try {
+            for (ni in NetworkInterface.getNetworkInterfaces()) {
+                if (!ni.isUp || ni.isLoopback) continue
+                val n = ni.name.lowercase()
+                if (n.startsWith("rmnet") || n.startsWith("ccmni") || n.startsWith("pdp") ||
+                    n.startsWith("tun") || n.startsWith("tap") || n.startsWith("ppp") ||
+                    n.startsWith("dummy")) continue
+                for (ia in ni.inetAddresses) {
+                    if (ia.isLoopbackAddress || ia !is Inet4Address) continue
+                    val ip = ia.hostAddress ?: continue
+                    if (ip.startsWith("169.254.")) continue
+                    if (n.startsWith("wlan") || n.startsWith("ap") || n.startsWith("softap") || n.contains("swlan"))
+                        return ip
+                    if (fallback.isEmpty()) fallback = ip
+                }
             }
-            if (found.isNotEmpty()) break
-        }
-        found
-    } catch (e: Exception) { "" }
+        } catch (e: Exception) {}
+        return fallback
+    }
 
     /** 启动（异步，进度经 cb 回调）。成功回调 "OK"，失败回调 "ERR:xxx" */
     fun start(ctx: android.content.Context, srv: JSONObject, cb: (String) -> Unit) {
@@ -133,11 +150,18 @@ object ServerManager {
                     try {
                         // 基岩 26.60+ 只认 NetherNet：老服里的旧 Geyser 先换新版，否则客户端报 149
                         Cores.ensureModernGeyser(dir) { emit("· $it") }
-                        Cores.ensureCrossplayConfig(dir, srv.optBoolean("onlineMode", false), srv.optInt("port", 25565))
+                        // 关键：signaling.advertise-addresses 固定成本机局域网 IP。
+                        // 留空时 Geyser 通告 STUN 探到的公网地址，手机在 Wi-Fi NAT 后没有端口转发，
+                        // 客户端拿到的地址连不上 —— 这就是 Terracotta / InitialConnection-149。
+                        val lanIp = localIp()
+                        Cores.ensureCrossplayConfig(dir, srv.optBoolean("onlineMode", false), srv.optInt("port", 25565), lanIp)
                         // 老版本 App 建的互通服没装 ViaVersion：Geyser 以 Java 26.3 连 1.21.x 核心会被拒，
                         // 表现为基岩玩家能连上服务器但进世界失败，这里自动补齐
                         Cores.ensureViaVersion(dir) { emit("· $it") }
-                        emit("· 互通配置已校正：基岩端口 19132（NetherNet，TCP+UDP 同端口）")
+                        emit(if (lanIp.isNotEmpty())
+                            "· 互通配置已校正：基岩端口 19132（NetherNet，信令地址 $lanIp:19132）"
+                        else
+                            "· 互通配置已校正：基岩端口 19132（未取到局域网 IP，靠 STUN 自动发现）")
                     } catch (e: Exception) { emit("· 互通配置校正失败：${e.message}") }
                     // 这版 Geyser 支持的基岩版版本：手机端必须一致，否则一直卡在“正在连接”
                     Cores.bedrockVersion(File(dir, "plugins/Geyser-Spigot.jar"))?.let { bv ->
