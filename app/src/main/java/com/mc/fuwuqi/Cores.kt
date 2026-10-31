@@ -231,6 +231,57 @@ object Cores {
         }
     } catch (_: Exception) { null }
 
+    /**
+     * 这版 Geyser 是否带 NetherNet（基岩 26.60 起的新传输层）。
+     * 按包里有没有 nethernet 实现判断，比猜版本号阈值可靠。
+     */
+    fun supportsNetherNet(jar: File): Boolean = try {
+        jar.isFile && java.util.zip.ZipFile(jar).use { z ->
+            z.getEntry("org/geysermc/geyser/network/bedrock/nethernet/NetherNetServer.class") != null
+        }
+    } catch (_: Exception) { false }
+
+    /**
+     * 基岩 26.60（2026-10-29 官方网络迁移）起客户端从 RakNet 改走 NetherNet，
+     * 只认支持 nethernet 的 Geyser。老互通服创建时下的是旧版 Geyser（只有 RakNet），
+     * 即使配置里写了 transport: nethernet 也不认，客户端直接报 Terracotta / InitialConnection-149
+     * （官方称 Unsupported Transport）。这里在启动前探能力，不支持就换最新版；新服不受影响。
+     */
+    fun ensureModernGeyser(dir: File, cb: (String) -> Unit) {
+        val plugins = File(dir, "plugins").apply { mkdirs() }
+        val gjar = File(plugins, "Geyser-Spigot.jar")
+        if (supportsNetherNet(gjar)) return
+        val old = if (gjar.isFile) geyserVersion(gjar) ?: "未知版本" else "未安装"
+        cb("Geyser $old 不支持基岩 26.60 的 NetherNet，正在更新（约 50MB，请稍候）…")
+        val tmp = File(plugins, "Geyser-Spigot.new.jar")
+        tmp.delete()
+        val ok = try {
+            Dl.download(
+                "https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/spigot",
+                tmp) { _, _ -> }
+        } catch (e: Exception) {
+            cb("Geyser 更新失败：${e.message}")
+            false
+        }
+        if (!ok || !supportsNetherNet(tmp)) {
+            tmp.delete()
+            cb("Geyser 仍是旧版：基岩 26.60+ 会报 Terracotta / 149，请联网后重启服务器再试")
+            return
+        }
+        // 先备份再替换，替换失败可回滚
+        val bak = File(plugins, "Geyser-Spigot.old.jar")
+        bak.delete()
+        gjar.renameTo(bak)
+        if (!tmp.renameTo(gjar)) {
+            bak.renameTo(gjar)
+            tmp.delete()
+            cb("Geyser 替换失败：基岩 26.60+ 会报 149")
+            return
+        }
+        bak.delete()
+        cb("Geyser 已更新到 ${geyserVersion(gjar) ?: "最新版"}（支持基岩 26.60 NetherNet）")
+    }
+
     /** 版本号按数值逐段比较（1.26.60 > 1.9.0） */
     fun verCmp(a: String, b: String): Int {
         val x = a.split('.').map { it.toIntOrNull() ?: 0 }

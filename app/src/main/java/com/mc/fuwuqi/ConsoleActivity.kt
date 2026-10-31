@@ -419,9 +419,8 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
             bedrockText.tag = ""
         }
         connHint.text = if (isCross)
-            "Java 版：朋友在「多人游戏 → 直接连接」输上面的地址。\n" +
-            "基岩版（手机/平板）：「游戏 → 服务器 → 添加服务器」，地址填 IP，端口填 19132，" +
-            "首次连接会弹「是否信任此服务器」，选信任即可；客户端版本需与上面一致（不匹配会一直卡在“正在连接”）。"
+            "Java 版用「多人游戏 → 直接连接」输地址；基岩版用「游戏 → 服务器 → 添加服务器」。\n" +
+            "详细连接方法（地址 / 端口 / 信任 / 版本一致）见「设置 → 连接说明」。"
         else
             "同一 WiFi 下，朋友在「多人游戏 → 直接连接」输入上面地址即可。端口不通时先看日志有没有 Done。"
         try {

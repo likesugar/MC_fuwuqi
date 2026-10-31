@@ -131,6 +131,8 @@ object ServerManager {
                 // 互通服：每次启动校正 Geyser 配置（老版本 App 建的服会写成 Geyser 2.x 不认的旧键名）
                 if (srv.optString("core") == Cores.CROSSPLAY) {
                     try {
+                        // 基岩 26.60+ 只认 NetherNet：老服里的旧 Geyser 先换新版，否则客户端报 149
+                        Cores.ensureModernGeyser(dir) { emit("· $it") }
                         Cores.ensureCrossplayConfig(dir, srv.optBoolean("onlineMode", false), srv.optInt("port", 25565))
                         // 老版本 App 建的互通服没装 ViaVersion：Geyser 以 Java 26.3 连 1.21.x 核心会被拒，
                         // 表现为基岩玩家能连上服务器但进世界失败，这里自动补齐

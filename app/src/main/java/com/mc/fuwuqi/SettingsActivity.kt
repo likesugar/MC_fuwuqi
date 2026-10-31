@@ -136,6 +136,26 @@ class SettingsActivity : androidx.appcompat.app.AppCompatActivity() {
         jc.addView(foot)
         listWrap.addView(jc, Ui.lp(-1, -2).also { it.topMargin = Ui.px(this, 4) })
 
+        // 连接说明（从控制台精简后挪到这里，避免控制台信息过载）
+        listWrap.addView(section("连接说明"))
+        val hc = Ui.card(this)
+        hc.setPadding(Ui.px(this, 18), Ui.px(this, 14), Ui.px(this, 18), Ui.px(this, 16))
+        hc.addView(Ui.text(this, "Java 版（电脑）", 16f, getColor(R.color.text), true))
+        hc.addView(Ui.text(this,
+            "朋友在「多人游戏 → 直接连接」输入上面的服务器地址（IP:端口）即可。",
+            13f, getColor(R.color.text_sub)).also { it.setPadding(0, Ui.px(this, 4), 0, 0) })
+        hc.addView(Ui.text(this, "基岩版（手机 / 平板）", 16f, getColor(R.color.text), true).also {
+            it.setPadding(0, Ui.px(this, 12), 0, 0) })
+        hc.addView(Ui.text(this,
+            "「游戏 → 服务器 → 添加服务器」，地址填 IP，端口填 19132，首次连接会弹「是否信任此服务器」，选信任即可；客户端版本需与上面一致（不匹配会一直卡在“正在连接”）。",
+            13f, getColor(R.color.text_sub)).also { it.setPadding(0, Ui.px(this, 4), 0, 0) })
+        hc.addView(Ui.text(this, "基岩 26.60 起改用 NetherNet", 16f, getColor(R.color.text), true).also {
+            it.setPadding(0, Ui.px(this, 12), 0, 0) })
+        hc.addView(Ui.text(this,
+            "26.60 起基岩客户端改走 NetherNet，需 19132 的 TCP 和 UDP 同时可达。若客户端报 Terracotta / InitialConnection-149，多半是 19132 的 TCP 没放通，或客户端缓存了旧条目 —— 删掉该服务器重新添加即可。",
+            13f, getColor(R.color.text_sub)).also { it.setPadding(0, Ui.px(this, 4), 0, 0) })
+        listWrap.addView(hc, Ui.lp(-1, -2).also { it.topMargin = Ui.px(this, 4) })
+
         // 关于
         listWrap.addView(section("关于"))
         val ab = Ui.card(this)
