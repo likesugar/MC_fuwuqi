@@ -33,7 +33,7 @@ jobs:
           gh release create "$TAG" "MC-kai-fu-v1.0.apk" --title "MC开服 v1.0" --notes "自构建版，直接安装" \
             || gh release upload "$TAG" "MC-kai-fu-v1.0.apk" --clobber
       - name: Upload artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: MC-kai-fu-v1.0
           path: MC-kai-fu-v1.0.apk
