@@ -38,7 +38,6 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
     private lateinit var perfHandler: android.os.Handler
     private lateinit var perfTick: Runnable
     private var readyNotified = false
-    private var bvLoading = false
 
     private val lineCb: (String) -> Unit = { line ->
         runOnUiThread {
@@ -78,7 +77,7 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
         val col = Ui.linear(this, true)
         col.addView(Ui.text(this, srv.optString("name", "我的服务器"), 22f, getColor(R.color.text), true))
         statusDot = Ui.text(this, "", 13f, getColor(R.color.text_sub))
-        col.addView(statusDot)
+        // 状态行（● 运行中 · …）按需求不再显示，仅保留对象供状态逻辑写值
         bar.addView(col, Ui.lp(0, -2, 1f))
         stopBtn = Ui.text(this, "启动", 18f, getColor(R.color.green), true)
         stopBtn.setPadding(Ui.px(this, 14), 0, 0, 0)
@@ -140,7 +139,7 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
         }
         addrCard.setOnClickListener { doCopy() }
         addrText.setOnClickListener { doCopy() }
-        // 互通服：单独一行给基岩版（手机/平板）地址与对应版本
+        // 互通服：单独一行给基岩版（手机/平板）地址
         bedrockText = Ui.text(this, "", 13f, getColor(R.color.text_sub))
         bedrockText.setPadding(0, Ui.px(this, 8), 0, 0)
         addrCard.addView(bedrockText)
@@ -163,17 +162,19 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
         root.addView(keepAliveTip)
 
 
-        // 性能面板（12/5）：CPU / 内存 实时
+        // 性能面板（12/5）：CPU / 内存 实时（无服务器时隐藏，避免地址卡与日志框之间空隙过大）
         perfText = Ui.text(this, "", 12f, getColor(R.color.text_sub))
         perfText.setPadding(Ui.px(this, 24), Ui.px(this, 6), Ui.px(this, 24), 0)
+        perfText.visibility = View.GONE
         root.addView(perfText)
         perfHandler = android.os.Handler(android.os.Looper.getMainLooper())
         perfTick = object : Runnable {
             var lastJf = 0L; var lastSys = 0L
             override fun run() {
                 val pid = ServerManager.serverPid()
-                if (pid == null) { perfText.text = ""; lastJf = 0; lastSys = 0 }
+                if (pid == null) { perfText.visibility = View.GONE; perfText.text = ""; lastJf = 0; lastSys = 0 }
                 else {
+                    perfText.visibility = View.VISIBLE
                     try {
                         val st = java.io.File("/proc/$pid/stat").readText()
                         val parts = st.substring(st.lastIndexOf(')') + 2).split(" ")
@@ -246,7 +247,7 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
         rlp.addRule(android.widget.RelativeLayout.ALIGN_PARENT_BOTTOM)
         mid.addView(bottom, rlp)
         val mlp = Ui.lp(-1, 0, 1f)
-        mlp.setMargins(Ui.px(this, 20), Ui.px(this, 12), Ui.px(this, 20), Ui.px(this, 10))
+        mlp.setMargins(Ui.px(this, 20), Ui.px(this, 4), Ui.px(this, 20), Ui.px(this, 10))
         root.addView(mid, mlp)
 
         setContentView(root)
@@ -380,29 +381,13 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
         stopBtn.setTextColor(getColor(if (running) R.color.danger else R.color.green))
         val ip = ServerManager.localIp()
         addrText.text = if (running && ip.isNotEmpty()) "$ip:$port" else "—"
-        // 互通服：显示基岩版地址 + 这版 Geyser 支持的基岩版版本
+        // 互通服：显示基岩版地址（版本区间等说明文字已按需求移除）
         val isCross = srv.optString("core") == Cores.CROSSPLAY
-        val bv = srv.optString("bedrockVersion")
         if (isCross) {
             val lan = if (running && ip.isNotEmpty()) "$ip:19132" else ""
             bedrockText.visibility = View.VISIBLE
-            bedrockText.text = "基岩版连接地址：${lan.ifEmpty { "本机局域网IP:19132" }}" +
-                "（同一台手机自连、同一 WiFi 其他设备，都填这个地址；删掉旧条目重新添加）· 基岩版 1.26.40 ~ " +
-                bv.ifEmpty { "识别中…" } + " 均可进"
+            bedrockText.text = "基岩版连接地址：${lan.ifEmpty { "本机局域网IP:19132" }}"
             bedrockText.tag = lan
-            if (bv.isEmpty() && !bvLoading) {
-                bvLoading = true
-                Thread {
-                    try {
-                        val jar = java.io.File(Store.serverDir(id), "plugins/Geyser-Spigot.jar")
-                        Cores.bedrockVersion(jar)?.let { v ->
-                            Store.updateServer(id, JSONObject().put("bedrockVersion", v))
-                            if (!isFinishing && !isDestroyed) runOnUiThread { render() }
-                        }
-                    } catch (_: Exception) {
-                    } finally { bvLoading = false }
-                }.start()
-            }
         } else {
             bedrockText.visibility = View.GONE
             bedrockText.tag = ""
