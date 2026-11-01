@@ -24,17 +24,20 @@ jobs:
       - name: Build release APK
         run: ./gradle-8.13/bin/gradle :app:assembleRelease --no-daemon
       - name: Rename APK
-        run: mv app/build/outputs/apk/release/*.apk "MC-kai-fu-v1.0.apk"
+        # 文件名带 run_number，与 release tag / versionCode 一致，手机上一眼区分新旧版本
+        run: mv app/build/outputs/apk/release/*.apk "MC-kai-fu-v1.0-${{ github.run_number }}.apk"
       - name: Release APK
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="v1.0-${{ github.run_number }}"
-          gh release create "$TAG" "MC-kai-fu-v1.0.apk" --title "MC开服 v1.0" --notes "自构建版，直接安装" \
-            || gh release upload "$TAG" "MC-kai-fu-v1.0.apk" --clobber
+          APK="MC-kai-fu-v1.0-${{ github.run_number }}.apk"
+          gh release create "$TAG" "$APK" --title "MC开服 v1.0 (build ${{ github.run_number }})" \
+            --notes "自构建版 build ${{ github.run_number }}，直接安装。安装后 App 设置里可核对版本号。" \
+            || gh release upload "$TAG" "$APK" --clobber
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
-          name: MC-kai-fu-v1.0
-          path: MC-kai-fu-v1.0.apk
+          name: MC-kai-fu-v1.0-${{ github.run_number }}
+          path: MC-kai-fu-v1.0-${{ github.run_number }}.apk
           if-no-files-found: error

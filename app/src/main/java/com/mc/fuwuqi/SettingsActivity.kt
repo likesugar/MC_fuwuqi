@@ -151,7 +151,11 @@ class SettingsActivity : androidx.appcompat.app.AppCompatActivity() {
         val ab = Ui.card(this)
         ab.setPadding(Ui.px(this, 18), Ui.px(this, 14), Ui.px(this, 18), Ui.px(this, 16))
         val ver = try { packageManager.getPackageInfo(packageName, 0) } catch (e: Exception) { null }
-        ab.addView(Ui.text(this, "MC开服 v${ver?.versionName ?: "?"}", 15f, getColor(R.color.text), true))
+        val code = ver?.let {
+            if (android.os.Build.VERSION.SDK_INT >= 28) it.longVersionCode
+            else @Suppress("DEPRECATION") it.versionCode.toLong()
+        } ?: 0L
+        ab.addView(Ui.text(this, "MC开服 v${ver?.versionName ?: "?"} (build $code)", 15f, getColor(R.color.text), true))
         ab.addView(Ui.text(this,
             "容器方案：proot（ptrace 路径重定向）+ Debian glibc 精简 rootfs + Temurin JRE。服务器文件都在 ${Store.serversDir.absolutePath}/ ，可以用文件管理器直接改配置、塞插件。",
             12f, getColor(R.color.text_sub)).also { it.setPadding(0, Ui.px(this, 6), 0, 0) })
