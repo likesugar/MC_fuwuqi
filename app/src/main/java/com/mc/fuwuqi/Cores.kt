@@ -15,6 +15,10 @@ object Cores {
     /** 互通服用：Geyser 要求的 Java 协议比核心新，靠 ViaVersion 桥接 */
     const val VIA_VER = "5.12.2"
 
+    /** Floodgate 本地绑定数据库（SQLite 扩展）：官方下载站 floodgatedb 项目 */
+    private const val FLOODGATE_DB_URL =
+        "https://download.geysermc.org/v2/projects/floodgatedb/versions/latest/builds/latest/downloads/sqlite"
+
     private fun arr2list(a: JSONArray): List<String> =
         (0 until a.length()).map { a.getString(it) }
 
@@ -315,6 +319,8 @@ object Cores {
         cb("下载 Floodgate 插件 …")
         Dl.download("https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest/downloads/spigot", File(plugins, "Floodgate-Spigot.jar")) { _, _ -> }
         ensureViaVersion(dir, cb)
+        // 账号绑定：Floodgate 本地 SQLite 数据库（/linkaccount 共享 Java/基岩数据）
+        ensureFloodgateLinking(dir, cb)
         // server.properties 由创建流程按用户配置写入（含 online-mode），这里只写 Geyser 的 config.yml
         // 信令地址必须显式给本机局域网 IP：留空时 Geyser 会通告 STUN 探到的公网地址，
         // 手机在 Wi-Fi NAT 后面没有端口转发，基岩客户端连过去就是 Terracotta / InitialConnection-149
@@ -372,6 +378,54 @@ object Cores {
                 false
             }
         }
+    }
+
+    /**
+     * 教程同款：Floodgate 本地 SQLite 数据库，Java/基岩账号绑定（数据互通）。
+     *
+     * 玩家用 Java 端和基岩端各登录一次、分别输入 /linkaccount 完成绑定后，
+     * 两个账号共享同一份玩家数据（背包/坐标/成就走 Java 账号那份）。
+     * 实现（GeyserMC 官方 Local Linking）：
+     * 1. floodgate-sqlite-database.jar 放进 plugins/floodgate/（约 9.7MB，
+     *    首次联网下载后缓存在 runDir，多个服共用；不打包进 APK 以控制体积）
+     * 2. Floodgate config.yml 的 player-link 段：enable-own-linking: true + type: sqlite
+     *    （require-link 保持 false —— 不强制绑定，未绑定的基岩玩家照常进服）
+     * 3. enable-global-linking 同步保持 true：本地库优先，本地没有再查官方全局库
+     *
+     * Floodgate 用 configutils 加载配置，预写入的残缺 config.yml 会在首次启动时
+     * 按官方模板自动补全其余段落，所以这里只 patch player-link 段是安全的。
+     * 注意：enable-own-linking 置 true 前必须确认数据库扩展 jar 已就位，否则 Floodgate 启动报错，
+     * 所以下载失败时直接返回、不动配置。
+     */
+    fun ensureFloodgateLinking(dir: File, cb: (String) -> Unit) {
+        val fgDir = File(dir, "plugins/floodgate")
+        val dbJar = File(fgDir, "floodgate-sqlite-database.jar")
+        val ready = dbJar.isFile && dbJar.length() > 1_000_000
+        if (!ready) {
+            val cache = File(Store.runDir, "floodgate-sqlite-database.jar")
+            try {
+                if (!cache.isFile || cache.length() < 1_000_000) {
+                    cb("下载账号绑定数据库（SQLite，约 9.7MB，仅首次）…")
+                    Dl.download(FLOODGATE_DB_URL, cache) { _, _ -> }
+                }
+                fgDir.mkdirs()
+                cache.copyTo(dbJar, overwrite = true)
+                cb("账号绑定数据库已就位")
+            } catch (e: Exception) {
+                cb("绑定数据库下载失败：${e.message}（不影响进服，仅 /linkaccount 绑定不可用）")
+                return
+            }
+        }
+        val f = File(fgDir, "config.yml")
+        var t = if (f.isFile && f.length() > 0L) f.readText() else "player-link:\n"
+        t = patchSection(t, "player-link", "enabled", "true")
+        t = patchSection(t, "player-link", "require-link", "false")
+        t = patchSection(t, "player-link", "allowed", "true")
+        t = patchSection(t, "player-link", "enable-own-linking", "true")
+        t = patchSection(t, "player-link", "type", "sqlite")
+        t = patchSection(t, "player-link", "enable-global-linking", "true")
+        f.writeText(t)
+        cb("账号绑定已开启：游戏内 /linkaccount 可绑定 Java 与基岩账号共享数据")
     }
 
     /**

@@ -166,6 +166,8 @@ object ServerManager {
                         // 老版本 App 建的互通服没装 ViaVersion：Geyser 以 Java 26.3 连 1.21.x 核心会被拒，
                         // 表现为基岩玩家能连上服务器但进世界失败，这里自动补齐
                         Cores.ensureViaVersion(dir) { emit("· $it") }
+                        // 账号绑定：Floodgate 本地 SQLite 数据库，/linkaccount 绑定 Java 与基岩账号共享数据
+                        Cores.ensureFloodgateLinking(dir) { emit("· $it") }
                         val lanIp = lanIps.firstOrNull() ?: ""
                         val addrHint = if (lanIp.isNotEmpty()) "$lanIp:19132" else "本机局域网IP:19132"
                         emit("· 互通配置已校正：基岩端口 19132（官方 RakNet/UDP）。" +

@@ -154,6 +154,11 @@ class SettingsActivity : androidx.appcompat.app.AppCompatActivity() {
         hc.addView(Ui.text(this,
             "按 Geyser 官方教程：基岩通道走 19132（UDP）。连接步骤：① 游戏内「服务器 → 添加服务器」，地址填控制台显示的局域网 IP（192.168.x.x 或 10.x.x.x）、端口 19132；② 首次连接弹「是否信任此服务器」选信任；③ 基岩版版本需与控制台显示的对应版本一致（不匹配会一直卡在“正在连接”）。外网联机需在路由器放行 UDP 19132。",
             13f, getColor(R.color.text_sub)).also { it.setPadding(0, Ui.px(this, 4), 0, 0) })
+        hc.addView(Ui.text(this, "账号绑定（Java / 基岩数据互通）", 16f, getColor(R.color.text), true).also {
+            it.setPadding(0, Ui.px(this, 12), 0, 0) })
+        hc.addView(Ui.text(this,
+            "互通服已内置绑定数据库（SQLite）。绑定后，一个玩家在 Java 端和基岩端登录都会用同一份存档数据（背包/位置/成就跟随 Java 账号）。绑定方法：① 先用 Java 端进一次服，在聊天栏输入 /linkaccount，会得到一个数字码；② 再用基岩端进服，输入 /linkaccount 数字码；③ 两端会被踢出并提示绑定成功，之后两端数据互通。换号解绑用 /unlinkaccount。未绑定的基岩玩家不受影响，照常进服。",
+            13f, getColor(R.color.text_sub)).also { it.setPadding(0, Ui.px(this, 4), 0, 0) })
         listWrap.addView(hc, Ui.lp(-1, -2).also { it.topMargin = Ui.px(this, 4) })
 
         // 关于
