@@ -117,9 +117,8 @@ class ServerService : Service() {
 
     private fun buildNotification(id: String, name: String, port: Int): Notification {
         val ip = ServerManager.localIp()
-        val isCross = try { Store.findServer(id)?.optString("core") == Cores.CROSSPLAY } catch (_: Exception) { false }
         val where = if (ip.isEmpty()) "端口 $port" else "$ip:$port"
-        val text = if (isCross) "Java $where · 基岩 $ip:19132" else "$where · 后台保活中"
+        val text = "$where · 后台保活中"
         val b = Notification.Builder(this, CH)
             .setSmallIcon(android.R.drawable.stat_notify_sync_noanim)
             .setContentTitle("服务器运行中 · $name")

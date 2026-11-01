@@ -73,21 +73,15 @@ object ServerManager {
     fun isRunning(id: String): Boolean = runningId == id && proc?.isAlive == true
 
     /**
-     * 本机局域网 IPv4。
-     *
+     * 本机局域网 IPv4（用于界面上显示连接地址）。
      * 优先 Wi-Fi / 热点接口：蜂窝接口（rmnet/ccmni/pdp）拿到的是运营商内网地址，
-     * 局域网里的玩家根本连不上；VPN（tun/ppp）同理。这个地址既用于界面上显示，
-     * 也写进 Geyser 的 signaling.advertise-addresses —— 基岩客户端就是照它去连的。
+     * 局域网里的玩家连不上；VPN（tun/ppp）同理。
      */
     fun localIp(): String = localIps().firstOrNull() ?: ""
 
     /**
      * 收集本机所有「局域网可达」的 IPv4 地址（Wi-Fi / 热点 / 以太网 / p2p 等），
      * 排除回环、蜂窝（rmnet/ccmni/pdp）和 VPN（tun/tap/ppp）。
-     * NetherNet 走 WebRTC，客户端需要拿到一个它在自己网络栈里能路由到的地址；
-     * 同机自连、同 WiFi 另一台设备、开了热点的场景，各自对应的就是这些地址之一。
-     * 注意：绝不要把 127.0.0.1 放进 advertise —— WebRTC/ICE 会排除 loopback 候选，
-     * 写进去反而让所有玩家（含本机）握手超时。
      */
     fun localIps(): List<String> {
         val out = LinkedHashSet<String>()
@@ -152,31 +146,6 @@ object ServerManager {
                         "max-players=${srv.optInt("maxPlayers", 20)}\n" +
                         "online-mode=${srv.optBoolean("onlineMode", false)}\n" +
                         "difficulty=${srv.optString("difficulty", "easy")}\ngamemode=${srv.optString("gamemode", "survival")}\nenable-rcon=false\nspawn-protection=0\nview-distance=6\nsimulation-distance=4\nsync-chunk-writes=false\nuse-native-transport=true\nnetwork-compression-threshold=256\nmax-tick-time=-1\n")
-                }
-                // 互通服：每次启动校正 Geyser 配置（老版本 App 建的服会写成 Geyser 2.x 不认的旧键名）
-                if (srv.optString("core") == Cores.CROSSPLAY) {
-                    try {
-                        // 基岩 26.60+ 只认 NetherNet：老服里的旧 Geyser 先换新版，否则客户端报 149
-                        Cores.ensureModernGeyser(dir) { emit("· $it") }
-                        // 关键：signaling.advertise-addresses 固定成本机局域网 IP。
-                        // 留空时 Geyser 通告 STUN 探到的公网地址，手机在 Wi-Fi NAT 后没有端口转发，
-                        // 客户端拿到的地址连不上 —— 这就是 Terracotta / InitialConnection-149。
-                        val lanIps = localIps()
-                        Cores.ensureCrossplayConfig(dir, srv.optBoolean("onlineMode", false), srv.optInt("port", 25565), lanIps)
-                        // 老版本 App 建的互通服没装 ViaVersion：Geyser 以 Java 26.3 连 1.21.x 核心会被拒，
-                        // 表现为基岩玩家能连上服务器但进世界失败，这里自动补齐
-                        Cores.ensureViaVersion(dir) { emit("· $it") }
-                        val lanIp = lanIps.firstOrNull() ?: ""
-                        val addrHint = if (lanIp.isNotEmpty()) "$lanIp:19132" else "本机局域网IP:19132"
-                        emit("· 互通配置已校正：基岩端口 19132（NetherNet）。" +
-                            "同一台手机、同一 WiFi 其他设备，基岩版都填 $addrHint（删掉旧条目重新添加）")
-                    } catch (e: Exception) { emit("· 互通配置校正失败：${e.message}") }
-                    // 这版 Geyser 支持的基岩版版本：手机端必须一致，否则一直卡在“正在连接”
-                    Cores.bedrockVersion(File(dir, "plugins/Geyser-Spigot.jar"))?.let { bv ->
-                        emit("· 基岩版对应版本 $bv（手机端需同版本，地址 IP:19132）")
-                        if (bv != srv.optString("bedrockVersion"))
-                            Store.updateServer(srv.optString("id"), JSONObject().put("bedrockVersion", bv))
-                    }
                 }
                 val mem = srv.optInt("memoryMb", 2048)
                 val flags = appCtx.getSharedPreferences("app", 0)

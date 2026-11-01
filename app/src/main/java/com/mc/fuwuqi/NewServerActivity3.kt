@@ -45,54 +45,6 @@ class NewServerActivity3 : androidx.appcompat.app.AppCompatActivity() {
         values["online-mode"] = "false"
         values["enforce-secure-profile"] = "false"
         values["view-distance"] = "4"
-        if (core == Cores.CROSSPLAY) {
-            // 显式模式选择按钮（正主/离线），写 values["online-mode"]
-            val modeRow = android.widget.LinearLayout(this)
-            modeRow.orientation = android.widget.LinearLayout.HORIZONTAL
-            modeRow.gravity = Gravity.CENTER
-            modeRow.setPadding(0, Ui.px(this, 4), 0, Ui.px(this, 8))
-            fun modeBtn(label: String, online: Boolean): TextView {
-                val t = TextView(this); t.text = label; t.tag = online
-                t.gravity = Gravity.CENTER; t.setPadding(Ui.px(this,18), Ui.px(this,10), Ui.px(this,18), Ui.px(this,10))
-                return t }
-            val bOff = modeBtn("⚪ 离线模式", false)
-            val bOn = modeBtn("🟢 正版模式", true)
-            fun refreshMode(){ val online = values["online-mode"]=="true"
-                for (b in listOf(bOff,bOn)) { val on = (b.tag as Boolean)==online
-                    b.setTextColor(if (on) Color.WHITE else getColor(R.color.text))
-                    b.setBackgroundResource(if (on) R.drawable.bg_btn_green else R.drawable.bg_card) } }
-            bOff.setOnClickListener { values["online-mode"]="false"; refreshMode() }
-            bOn.setOnClickListener { values["online-mode"]="true"; refreshMode() }
-            modeRow.addView(bOff); modeRow.addView(bOn)
-            val modeParams = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT)
-            modeParams.setMargins(Ui.px(this,20), 0, Ui.px(this,20), Ui.px(this,4))
-            root.addView(modeRow, modeParams)
-            refreshMode()
-            root.addView(Ui.text(this,
-                "📱 互通服提示：基岩版（手机）玩家填「服务器 IP + 端口 19132」即可，局域网里也能直接搜到。\n" +
-                "· 正版模式：基岩玩家需 Xbox 账号验证，进服名字会带 \".\" 前缀，可公开 IP\n" +
-                "· 离线模式：任何人可直接进，仅限熟人使用，严禁公开 IP\n" +
-                "· 外网联机：路由器要同时放行 TCP 和 UDP 19132 —— 基岩 26.60 起改走 NetherNet，只转发 UDP 会一直连不上；用 IP 直连时首次会弹「是否信任此服务器」，选信任", 12.5f, getColor(R.color.text_sub)))
-            (root.getChildAt(root.childCount - 1) as TextView).setPadding(Ui.px(this, 20), Ui.px(this, 10), Ui.px(this, 20), Ui.px(this, 4))
-            // 基岩版版本：手机端版本必须与 Geyser 支持的版本一致，否则一直卡在“正在连接”
-            val bvText = Ui.text(this, "· 基岩版版本：检测中 …", 12.5f, getColor(R.color.green), true)
-            bvText.setPadding(Ui.px(this, 20), 0, Ui.px(this, 20), Ui.px(this, 4))
-            root.addView(bvText)
-            Thread {
-                val jar = Cores.installedGeyserJar()
-                val bv = jar?.let { Cores.bedrockVersion(it) }
-                val gv = jar?.let { Cores.geyserVersion(it) }
-                runOnUiThread {
-                    if (isFinishing || isDestroyed) return@runOnUiThread
-                    bvText.text = when {
-                        bv != null -> "· 基岩版版本：$bv" +
-                            (if (gv != null) "（Geyser $gv）" else "") + " —— 手机端必须是这个版本才能进服"
-                        else -> "· 基岩版版本：创建完成后自动显示（手机端需与 Geyser 支持的版本一致）"
-                    }
-                }
-            }.start()
-        }
         values["difficulty"] = difficulty
         values["gamemode"] = gamemode
         values["max-players"] = maxPlayers.toString()
@@ -162,16 +114,6 @@ class NewServerActivity3 : androidx.appcompat.app.AppCompatActivity() {
                     val arr = Store.loadServers(); arr.put(o); Store.saveServers(arr)
                     val dir = Store.serverDir(o.optString("id")); dir.mkdirs()
                     Cores.download(core, version, dir) { s -> runOnUiThread { go.text = s } }
-                    var cross: Cores.Crossplay? = null
-                    if (core == Cores.CROSSPLAY) {
-                        cross = Cores.installCrossplayPlugins(dir, o.optBoolean("onlineMode", false), o.optInt("port", 25565)) { s -> runOnUiThread { go.text = s } }
-                        // 记下这版 Geyser 支持的基岩版版本：首页卡片、控制台页都靠它显示
-                        cross?.bedrockVersion?.let { bv ->
-                            o.put("bedrockVersion", bv)
-                            Store.updateServer(o.optString("id"),
-                                JSONObject().put("bedrockVersion", bv).put("geyserVersion", cross?.geyserVersion ?: ""))
-                        }
-                    }
                     // 把第 3 步的用户配置写入 server.properties（内存等 JVM 参数在启动时另用）
                     val propsFile = java.io.File(dir, "server.properties")
                     val existing = if (propsFile.exists()) propsFile.readLines().toMutableList() else mutableListOf()
@@ -187,8 +129,7 @@ class NewServerActivity3 : androidx.appcompat.app.AppCompatActivity() {
                         existing.add(0, "online-mode=${o.optBoolean("onlineMode", false)}")
                     propsFile.writeText(existing.joinToString("\n") + "\n")
                     runOnUiThread {
-                        val bv = o.optString("bedrockVersion")
-                        Ui.toast(this, if (bv.isNotEmpty()) "创建完成 · 基岩版 $bv（端口 19132）" else "创建完成")
+                        Ui.toast(this, "创建完成")
                         val i3 = Intent(this, ConsoleActivity::class.java).putExtra("id", o.optString("id"))
                         startActivity(i3)
                         finish()
@@ -196,16 +137,7 @@ class NewServerActivity3 : androidx.appcompat.app.AppCompatActivity() {
                 } catch (e: Exception) {
                     runOnUiThread {
                         go.isEnabled = true; go.text = "创 建"
-                        if (e.message?.contains("互通服需要 Paper") == true) {
-                            androidx.appcompat.app.AlertDialog.Builder(this)
-                                .setTitle("无法创建互通服")
-                                .setMessage(e.message + "\n\n未来 Paper/Geyser 支持该版本后，即可正常创建。")
-                                .setCancelable(false)
-                                .setPositiveButton("确认") { _, _ -> finish() }
-                                .show()
-                        } else {
-                            go.text = "重试：${e.message}"
-                        }
+                        go.text = "重试：${e.message}"
                     }
                 }
             }.start()

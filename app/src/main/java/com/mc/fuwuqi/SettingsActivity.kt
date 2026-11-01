@@ -144,21 +144,6 @@ class SettingsActivity : androidx.appcompat.app.AppCompatActivity() {
         hc.addView(Ui.text(this,
             "朋友在「多人游戏 → 直接连接」输入上面的服务器地址（IP:端口）即可。",
             13f, getColor(R.color.text_sub)).also { it.setPadding(0, Ui.px(this, 4), 0, 0) })
-        hc.addView(Ui.text(this, "基岩版（手机 / 平板）", 16f, getColor(R.color.text), true).also {
-            it.setPadding(0, Ui.px(this, 12), 0, 0) })
-        hc.addView(Ui.text(this,
-            "「游戏 → 服务器 → 添加服务器」，端口填 19132；地址填控制台显示的「基岩版连接地址」（局域网 IP:19132）—— 同一台手机自连、同一 WiFi 其他设备，都填这个地址。首次连接弹「是否信任此服务器」选信任；客户端版本需与控制台显示的对应版本一致（不匹配会一直卡在“正在连接”）。",
-            13f, getColor(R.color.text_sub)).also { it.setPadding(0, Ui.px(this, 4), 0, 0) })
-        hc.addView(Ui.text(this, "基岩 26.60 起改用 NetherNet", 16f, getColor(R.color.text), true).also {
-            it.setPadding(0, Ui.px(this, 12), 0, 0) })
-        hc.addView(Ui.text(this,
-            "26.60 起基岩客户端改走 NetherNet（TCP 信令 + UDP WebRTC）。19132 的 TCP 和 UDP 都要通。若报“握手失败”：① 确认填的是局域网 IP:19132（不要填 127.0.0.1，回环地址 WebRTC 连不上）；② 删掉客户端里该服务器条目重新添加；③ 手机需连着 Wi-Fi 或开着热点（纯流量下没有局域网地址，无法自连）。",
-            13f, getColor(R.color.text_sub)).also { it.setPadding(0, Ui.px(this, 4), 0, 0) })
-        hc.addView(Ui.text(this, "⚠ 基岩版 1.26.60 已知问题", 16f, getColor(R.color.text), true).also {
-            it.setPadding(0, Ui.px(this, 12), 0, 0) })
-        hc.addView(Ui.text(this,
-            "1.26.60 基岩客户端连第三方 Geyser 服务器有 Mojang 官方未修复 bug（MCPE-244019），会报 Terracotta / InitialConnection-149 超时；Java 版和 Windows Bedrock 不受影响。临时绕过：把手机基岩版降到 26.59（仍用 RakNet），本服已同时开启 RakNet 与 NetherNet 双栈，降级后照样填「局域网 IP:19132」即可连上。",
-            13f, getColor(R.color.text_sub)).also { it.setPadding(0, Ui.px(this, 4), 0, 0) })
         listWrap.addView(hc, Ui.lp(-1, -2).also { it.topMargin = Ui.px(this, 4) })
 
         // 关于

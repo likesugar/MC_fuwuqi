@@ -29,7 +29,6 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
     private lateinit var stopBtn: TextView
     private lateinit var addrCard: LinearLayout
     private lateinit var addrText: TextView
-    private lateinit var bedrockText: TextView
     private lateinit var connHint: TextView
     private lateinit var keepAliveTip: TextView
     private lateinit var listenState: TextView
@@ -40,7 +39,6 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
     private lateinit var perfHandler: android.os.Handler
     private lateinit var perfTick: Runnable
     private var readyNotified = false
-    private var bvLoading = false
 
     private val lineCb: (String) -> Unit = { line ->
         runOnUiThread {
@@ -93,7 +91,7 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
             pm.menu.add("服务器配置").setOnMenuItemClickListener {
                 startActivity(Intent(this, ConfigActivity::class.java).putExtra("id", id)); true
             }
-            // Paper 插件只适用于 Bukkit 系核心（Paper/互通服/Purpur）
+            // Paper 插件只适用于 Bukkit 系核心（Paper/Purpur）
             if (Cores.isBukkitLike(srv.optString("core"))) pm.menu.add("插件管理").setOnMenuItemClickListener {
                 startActivity(Intent(this, PluginActivity::class.java)
                     .putExtra("id", id).putExtra("mcVersion", srv.optString("mcVersion"))); true
@@ -149,20 +147,6 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
         addrCard.setOnClickListener { doCopy() }
         addrText.setOnClickListener { doCopy() }
         copyHint.setOnClickListener { doCopy() }
-        // 互通服：单独一行给基岩版（手机/平板）地址与对应版本
-        bedrockText = Ui.text(this, "", 13f, getColor(R.color.text_sub))
-        bedrockText.setPadding(0, Ui.px(this, 8), 0, 0)
-        addrCard.addView(bedrockText)
-        bedrockText.setOnClickListener {
-            val a = bedrockText.tag?.toString().orEmpty()
-            if (a.isEmpty()) {
-                Ui.toast(this, "服务器未运行，暂无基岩地址")
-            } else {
-                getSystemService(ClipboardManager::class.java)
-                    .setPrimaryClip(ClipData.newPlainText("bedrock", a))
-                Ui.toast(this, "已复制基岩地址：$a")
-            }
-        }
         root.addView(addrCard, Ui.lp(-1, -2).also { (it as LinearLayout.LayoutParams).setMargins(Ui.px(this, 20), 0, Ui.px(this, 20), 0) })
 
         // 电池优化未豁免时提示（Doze 会掐网，长连接直接 reset）
@@ -392,37 +376,7 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
         stopBtn.setTextColor(getColor(if (running) R.color.danger else R.color.green))
         val ip = ServerManager.localIp()
         addrText.text = if (running && ip.isNotEmpty()) "$ip:$port" else "—"
-        // 互通服：显示基岩版地址 + 这版 Geyser 支持的基岩版版本
-        val isCross = srv.optString("core") == Cores.CROSSPLAY
-        val bv = srv.optString("bedrockVersion")
-        if (isCross) {
-            val lan = if (running && ip.isNotEmpty()) "$ip:19132" else ""
-            bedrockText.visibility = View.VISIBLE
-            bedrockText.text = "基岩版连接地址：${lan.ifEmpty { "本机局域网IP" }}:19132" +
-                "（同一台手机自连、同一 WiFi 其他设备，都填这个地址；删掉旧条目重新添加）· 对应版本 " +
-                bv.ifEmpty { "识别中…" }
-            bedrockText.tag = lan
-            if (bv.isEmpty() && !bvLoading) {
-                bvLoading = true
-                Thread {
-                    try {
-                        val jar = java.io.File(Store.serverDir(id), "plugins/Geyser-Spigot.jar")
-                        Cores.bedrockVersion(jar)?.let { v ->
-                            Store.updateServer(id, JSONObject().put("bedrockVersion", v))
-                            if (!isFinishing && !isDestroyed) runOnUiThread { render() }
-                        }
-                    } catch (_: Exception) {
-                    } finally { bvLoading = false }
-                }.start()
-            }
-        } else {
-            bedrockText.visibility = View.GONE
-            bedrockText.tag = ""
-        }
-        connHint.text = if (isCross)
-            "Java 版用「多人游戏 → 直接连接」输地址；基岩版用「游戏 → 服务器 → 添加服务器」。\n" +
-            "详细连接方法（地址 / 端口 / 信任 / 版本一致）见「设置 → 连接说明」。"
-        else
+        connHint.text =
             "同一 WiFi 下，朋友在「多人游戏 → 直接连接」输入上面地址即可。端口不通时先看日志有没有 Done。"
         try {
             val pm = getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
