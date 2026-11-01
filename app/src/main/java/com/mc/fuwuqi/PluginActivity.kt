@@ -9,7 +9,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import org.json.JSONArray
 
-/** 插件管理：常用 Paper 插件一键装（仓库代理源：raw + gh-proxy 国内加速） */
+/** 插件管理：常用 Paper 插件一键装（raw.githubusercontent.com 直链下载，不套 gh-proxy） */
 class PluginActivity : androidx.appcompat.app.AppCompatActivity() {
 
     private lateinit var id: String
@@ -57,7 +57,7 @@ class PluginActivity : androidx.appcompat.app.AppCompatActivity() {
 
     private fun render() {
         listWrap.removeAllViews()
-        val tip = Ui.text(this, "插件从仓库代理源（国内 CDN）下载到服务器 plugins 目录，安装后需「停止」再「启动」生效。", 12f, getColor(R.color.text_sub))
+        val tip = Ui.text(this, "插件从 GitHub 仓库 raw 直链下载到服务器 plugins 目录，安装后需「停止」再「启动」生效。", 12f, getColor(R.color.text_sub))
         tip.setPadding(0, 0, 0, Ui.px(this, 8))
         listWrap.addView(tip)
         for (p in plugins) {
@@ -96,11 +96,11 @@ class PluginActivity : androidx.appcompat.app.AppCompatActivity() {
         Thread {
             var msg = ""
             try {
-                // 仓库代理源：raw 直链为主，Dl.download 自动走 gh-proxy / ghproxy 国内加速兜底
+                // 插件下载：严格走 raw.githubusercontent.com 直链（用户指定加速前缀，不套 gh-proxy）
                 val url = "https://raw.githubusercontent.com/likesugar/MC_fuwuqi/main/plugins/$slug.jar"
                 val dest = java.io.File(pluginDir(), "$slug.jar")
                 dest.delete()
-                val ok = Dl.download(url, dest) { c, t ->
+                val ok = rawDownload(url, dest) { c, t ->
                     runOnUiThread { go.text = "下载 $name ${Container.fmt(c)}" + (if (t > 0) " / ${Container.fmt(t)}" else "") } }
                 require(ok && dest.isFile && dest.length() > 0) { "下载失败，请检查网络或稍后重试" }
                 msg = "OK"
@@ -112,5 +112,42 @@ class PluginActivity : androidx.appcompat.app.AppCompatActivity() {
                 render()
             }
         }.start()
+    }
+
+    /** 仅从单个 raw 直链下载（不套 gh-proxy），带断点续传与进度回调；成功返回 true */
+    private fun rawDownload(urlStr: String, destFile: java.io.File, cb: (Long, Long) -> Unit): Boolean {
+        destFile.parentFile?.mkdirs()
+        val tmp = java.io.File(destFile.absolutePath + ".part")
+        var start = if (tmp.isFile) tmp.length() else 0L
+        try {
+            val conn = java.net.URL(urlStr).openConnection() as java.net.HttpURLConnection
+            conn.connectTimeout = 20000
+            conn.readTimeout = 60000
+            conn.instanceFollowRedirects = true
+            conn.setRequestProperty("User-Agent", "MCFuwuqi/1.0")
+            if (start > 0) conn.setRequestProperty("Range", "bytes=$start-")
+            conn.connect()
+            val code = conn.responseCode
+            if (code !in 200..299) { conn.disconnect(); return false }
+            var total = conn.contentLengthLong
+            if (code == 200 && start > 0) start = 0L else if (code == 206) total += start
+            conn.inputStream.use { ins ->
+                val raf = java.io.RandomAccessFile(tmp, "rw"); raf.seek(start)
+                try {
+                    val buf = ByteArray(64 * 1024); var got = start; var since = 0L
+                    while (true) {
+                        val n = ins.read(buf); if (n < 0) break
+                        raf.write(buf, 0, n); got += n; since += n
+                        if (since > 200_000) { since = 0; cb(got, total) }
+                    }
+                } finally { raf.close() }
+            }
+            conn.disconnect()
+            if (tmp.length() == 0L) return false
+            tmp.renameTo(destFile)
+            return true
+        } catch (e: Exception) {
+            return false
+        }
     }
 }
