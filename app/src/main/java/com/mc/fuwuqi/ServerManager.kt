@@ -221,6 +221,8 @@ object ServerManager {
                     UiBus.post()
                 }
                 cb("OK")
+                // 基岩端口启动自检：延迟扫描控制台，汇总 Geyser 关键日志，方便排查"基岩连不上"
+                if (srv.optString("core") == Cores.CROSSPLAY) summarizeGeyserLog()
                 // 输出泵 + logs/console.log 镜像（参照物同款）
                 val logFile = File(dir, "logs/console.log").apply { parentFile?.mkdirs(); if (!exists()) writeText("") }
                 val logOut = java.io.BufferedWriter(java.io.OutputStreamWriter(java.io.FileOutputStream(logFile, true)))
@@ -295,6 +297,38 @@ object ServerManager {
     fun send(cmd: String): Boolean {
         val w = stdin ?: return false
         w.println(cmd); return true
+    }
+
+    /**
+     * 基岩启动自检：Geyser 在 proot 受限环境里常因 NetherNet/WebRTC 初始化失败而整个基岩模块起不来，
+     * 表现就是"Java 版能连、所有基岩版都连不上"，但用户看不到根因。这里延迟扫描控制台，
+     * 把 Geyser 相关关键日志汇总打印，让问题一眼可见。
+     */
+    private fun summarizeGeyserLog() {
+        Thread {
+            try { Thread.sleep(25_000) } catch (_: Exception) {}
+            val txt = consoleText()
+            val keys = listOf("Geyser", "RakNet", "Bedrock", "bedrock", "NetherNet", "signaling",
+                "ERROR", "Exception", "WARN", "listening", "to bind", "bind",
+                "Failed", "address already in use", "Unsupported", "19132")
+            val lines = txt.lines().filter { l -> keys.any { k -> l.contains(k, ignoreCase = true) } }
+            if (lines.isEmpty()) {
+                emit("· [基岩诊断] 控制台未出现任何 Geyser 相关日志 —— 插件可能未加载（检查 plugins/ 目录与启动报错）")
+                return@Thread
+            }
+            emit("· [基岩诊断] Geyser 关键日志摘要：")
+            lines.takeLast(25).forEach { emit("    $it") }
+            val hasErr = lines.any { it.contains("ERROR", true) || it.contains("Exception", true) }
+            val hasBind = lines.any { it.contains("bind", true) || it.contains("address already in use", true) }
+            val hasSignal = lines.any { it.contains("signaling", true) && it.contains("started", true) }
+            when {
+                hasBind -> emit("· [基岩诊断] 检测到端口绑定失败 —— 19132 可能已被占用，需换端口或关掉占用者")
+                hasErr && !hasSignal -> emit("· [基岩诊断] Geyser 报错且信令未启动 —— 基岩连不上的根因在以上日志里")
+                !hasSignal -> emit("· [基岩诊断] 未检测到信令启动日志（Built-in signaling started）—— 基岩客户端无法发起连接")
+                hasErr -> emit("· [基岩诊断] 信令已启动但有报错；若基岩仍卡「正在连接」，把以上摘要发给开发者")
+                else -> emit("· [基岩诊断] Geyser 已启动且无明显报错；若基岩仍卡「正在连接」，多为 WebRTC 媒体层在 proot 下受限")
+            }
+        }.apply { isDaemon = true }.start()
     }
 
     // ---------- 自动备份（7/5） ----------
