@@ -168,7 +168,7 @@ object ServerManager {
                         Cores.ensureViaVersion(dir) { emit("· $it") }
                         val lanIp = lanIps.firstOrNull() ?: ""
                         val addrHint = if (lanIp.isNotEmpty()) "$lanIp:19132" else "本机局域网IP:19132"
-                        emit("· 互通配置已校正：基岩端口 19132（NetherNet）。" +
+                        emit("· 互通配置已校正：基岩端口 19132（官方 RakNet/UDP）。" +
                             "同一台手机、同一 WiFi 其他设备，基岩版都填 $addrHint（删掉旧条目重新添加）")
                     } catch (e: Exception) { emit("· 互通配置校正失败：${e.message}") }
                     // 这版 Geyser 支持的基岩版版本：手机端必须一致，否则一直卡在“正在连接”

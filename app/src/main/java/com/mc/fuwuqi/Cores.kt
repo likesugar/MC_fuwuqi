@@ -380,30 +380,19 @@ object Cores {
      * 注意（2026-10 线上问题复盘）：
      * - auth-type 在 Geyser 2.x 里属 java 段，写成顶层键会被整段丢弃，Geyser 退回 online，
      *   基岩玩家于是被要求用 Java 正版账号登录，表现就是"开了互通但基岩版进不去"。
-     * - 基岩 26.60 起客户端走 NetherNet（TCP 信令 + WebRTC/UDP），这是 Geyser/Mojang 官方当前标准：
-     *   transport: nethernet + webrtc-port: 0，TCP/UDP 都落在 19132，玩家按官方方式在
-     *   游戏内「添加服务器」填「IP:19132」连接即可。
+     * - 按 Geyser 官方教程（wiki.geysermc.org/geyser/setup）：基岩走 bedrock.port 19132（UDP/RakNet），
+     *   transport 用官方默认 raknet；官方 config 文档也没有 signaling/webrtc-port 这些键。
+     *   实测 nethernet/both 在手机 proot 环境下整个基岩模块起不来（连纯 RakNet 老客户端都进不去），
+     *   官方默认 raknet 不碰 WebRTC，是唯一在 proot 下可行的通道。
      * - java.port 必须跟随用户实际设置的 Java 端口，否则改了端口后 Geyser 连不上后端。
      */
     fun crossplayConfig(onlineMode: Boolean, javaPort: Int, advertiseIps: List<String> = emptyList()): String {
-        // 只用局域网 IP 做 advertise：同一台手机自连、同一 WiFi 其他设备，基岩版都填「这个 IP:19132」。
-        // 绝不要 127.0.0.1 —— WebRTC/ICE 会排除 loopback 候选，写进 advertise 反而让所有玩家（含本机）握手超时。
-        val valid = advertiseIps.filter { it.isNotBlank() && it != "127.0.0.1" }
-        val adv = if (valid.isNotEmpty())
-            valid.joinToString(", ", "[", "]") { "\"$it:19132\"" }
-        else "[]"
-        // 给了局域网地址就关 STUN（同机/局域网不需要打洞）；没给才靠 STUN 猜公网（多半连不上）
-        val stun = valid.isEmpty()
+        // 官方教程：基岩玩家连「本机局域网 IPv4 + 端口 19132」，同机用 127.0.0.1 亦可（RakNet 无 WebRTC loopback 限制）
         return "bedrock:\n" +
         "  address: 0.0.0.0\n" +
         "  port: 19132\n" +
-        "  webrtc-port: 0\n" +
-        "  transport: nethernet\n" +
+        "  transport: raknet\n" +
         "  clone-remote-port: false\n" +
-        "  signaling:\n" +
-        "    mode: builtin\n" +
-        "    advertise-addresses: $adv\n" +
-        "    stun-discovery: $stun\n" +
         "java:\n" +
         "  address: 127.0.0.1\n" +
         "  port: $javaPort\n" +
@@ -428,14 +417,12 @@ object Cores {
             return
         }
         t = patchSection(t, "bedrock", "port", "19132")
-        // 官方标准：基岩 26.60+ 走 NetherNet（TCP 信令 + WebRTC/UDP 同端口 19132）
-        t = patchSection(t, "bedrock", "webrtc-port", "0")
-        t = patchSection(t, "bedrock", "transport", "nethernet")
+        // 官方默认：transport: raknet（19132 UDP）。RakNet 模式下客户端直连用户填的 IP:19132，
+        // 不需要 signaling / advertise / webrtc-port —— 这些是 NetherNet 专属键，残留反而可能干扰启动
+        t = patchSection(t, "bedrock", "transport", "raknet")
         t = patchSection(t, "bedrock", "clone-remote-port", "false")
-        // 信令阶段告诉客户端"来这个地址连我"。留空时 Geyser 会通告本机所有地址 + STUN 猜的公网地址，
-        // 手机在 Wi-Fi 的 NAT 后面时，客户端拿到公网地址却连不上，正是 Terracotta / InitialConnection-149 的成因。
-        t = ensureSignalingBlock(t)
-        t = patchSignalingAddress(t, advertiseIps)
+        t = removeKey(t, "bedrock", "webrtc-port")
+        t = removeSection(t, "signaling")
         t = patchSection(t, "java", "address", "127.0.0.1")
         t = patchSection(t, "java", "port", javaPort.toString())
         t = patchSection(t, "java", "auth-type", auth)
@@ -496,6 +483,35 @@ object Cores {
             "    mode: builtin",
             "    advertise-addresses: []",
             "    stun-discovery: true"))
+        return lines.joinToString("\n")
+    }
+
+    /** 从 YAML 某一段里删掉某个键（键不存在则原样返回） */
+    internal fun removeKey(text: String, section: String, key: String): String {
+        val lines = text.lines().toMutableList()
+        val sec = lines.indexOfFirst { it.trimEnd() == "$section:" }
+        if (sec < 0) return text
+        var end = lines.size
+        for (i in sec + 1 until lines.size) {
+            val l = lines[i]
+            if (l.isNotEmpty() && !l[0].isWhitespace() && !l.startsWith("#")) { end = i; break }
+        }
+        val idx = (sec + 1 until end).firstOrNull { lines[it].trimStart().startsWith("$key:") }
+        if (idx != null) lines.removeAt(idx)
+        return lines.joinToString("\n")
+    }
+
+    /** 整段删掉某个顶层/二级 YAML 段（段不存在则原样返回） */
+    internal fun removeSection(text: String, section: String): String {
+        val lines = text.lines().toMutableList()
+        val sec = lines.indexOfFirst { it.trimEnd() == "  $section:" || it.trimEnd() == "$section:" }
+        if (sec < 0) return text
+        var end = lines.size
+        for (i in sec + 1 until lines.size) {
+            val l = lines[i]
+            if (l.isNotBlank() && !l.startsWith(" ")) { end = i; break }
+        }
+        lines.subList(sec, end).clear()
         return lines.joinToString("\n")
     }
 
