@@ -136,30 +136,19 @@ class SettingsActivity : androidx.appcompat.app.AppCompatActivity() {
         jc.addView(foot)
         listWrap.addView(jc, Ui.lp(-1, -2).also { it.topMargin = Ui.px(this, 4) })
 
-        // 连接说明（从控制台精简后挪到这里，避免控制台信息过载）
-        listWrap.addView(section("连接说明"))
-        val hc = Ui.card(this)
-        hc.setPadding(Ui.px(this, 18), Ui.px(this, 14), Ui.px(this, 18), Ui.px(this, 16))
-        hc.addView(Ui.text(this, "Java 版（电脑）", 16f, getColor(R.color.text), true))
-        hc.addView(Ui.text(this,
-            "朋友在「多人游戏 → 直接连接」输入上面的服务器地址（IP:端口）即可。",
-            13f, getColor(R.color.text_sub)).also { it.setPadding(0, Ui.px(this, 4), 0, 0) })
-        hc.addView(Ui.text(this, "基岩版（手机 / 平板）", 16f, getColor(R.color.text), true).also {
-            it.setPadding(0, Ui.px(this, 12), 0, 0) })
-        hc.addView(Ui.text(this,
-            "「游戏 → 服务器 → 添加服务器」，端口填 19132；地址填控制台显示的「基岩版连接地址」（局域网 IP:19132）—— 同一台手机自连、同一 WiFi 其他设备，都填这个地址。首次连接弹「是否信任此服务器」选信任；基岩版 1.26.40 ~ 控制台显示的对应版本之间都可以进（太老或太新的版本会一直卡在“正在连接”）。",
-            13f, getColor(R.color.text_sub)).also { it.setPadding(0, Ui.px(this, 4), 0, 0) })
-        hc.addView(Ui.text(this, "基岩版连接（官方教程方式）", 16f, getColor(R.color.text), true).also {
-            it.setPadding(0, Ui.px(this, 12), 0, 0) })
-        hc.addView(Ui.text(this,
-            "基岩双通道：老客户端（1.26.40~1.26.59）走 RakNet（UDP 19132），新客户端（1.26.60+）走 NetherNet（信令 TCP 19132 + WebRTC UDP 19133）。连接步骤：① 游戏内「服务器 → 添加服务器」，地址填控制台显示的局域网 IP（192.168.x.x 或 10.x.x.x）、端口 19132；② 首次连接弹「是否信任此服务器」选信任。外网联机需在路由器同时放行 TCP+UDP 19132 和 UDP 19133。",
-            13f, getColor(R.color.text_sub)).also { it.setPadding(0, Ui.px(this, 4), 0, 0) })
-        hc.addView(Ui.text(this, "账号绑定（Java / 基岩数据互通）", 16f, getColor(R.color.text), true).also {
-            it.setPadding(0, Ui.px(this, 12), 0, 0) })
-        hc.addView(Ui.text(this,
-            "互通服已内置绑定数据库（SQLite）。绑定后，一个玩家在 Java 端和基岩端登录都会用同一份存档数据（背包/位置/成就跟随 Java 账号）。绑定方法：① 先用 Java 端进一次服，在聊天栏输入 /linkaccount，会得到一个数字码；② 再用基岩端进服，输入 /linkaccount 数字码；③ 两端会被踢出并提示绑定成功，之后两端数据互通。换号解绑用 /unlinkaccount。未绑定的基岩玩家不受影响，照常进服。",
-            13f, getColor(R.color.text_sub)).also { it.setPadding(0, Ui.px(this, 4), 0, 0) })
-        listWrap.addView(hc, Ui.lp(-1, -2).also { it.topMargin = Ui.px(this, 4) })
+        // Paper 插件（统一下载 + 按服务器开关）
+        listWrap.addView(section("Paper 插件"))
+        val ppc = Ui.card(this)
+        ppc.setPadding(Ui.px(this, 18), Ui.px(this, 14), Ui.px(this, 18), Ui.px(this, 16))
+        ppc.addView(Ui.text(this, "从本仓库下载常用插件到本地，再按服务器统一开关（开启即放入该服 plugins/，需重启生效）。", 13f, getColor(R.color.text_sub)))
+        val dled = PaperPlugins.LIST.count { PaperPlugins.isDownloaded(it.slug) }
+        ppc.addView(Ui.text(this, "本地仓库：$dled / ${PaperPlugins.LIST.size} 个已下载", 13f, getColor(R.color.text), true).also {
+            it.setPadding(0, Ui.px(this, 8), 0, 0) })
+        val manage = Ui.text(this, "统一管理（下载 / 按服务器开关）", 15f, getColor(R.color.green), true)
+        manage.setPadding(0, Ui.px(this, 12), 0, 0)
+        manage.setOnClickListener { startActivity(Intent(this, PaperPluginsActivity::class.java)) }
+        ppc.addView(manage)
+        listWrap.addView(ppc, Ui.lp(-1, -2).also { it.topMargin = Ui.px(this, 4) })
 
         // 关于
         listWrap.addView(section("关于"))

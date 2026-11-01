@@ -83,6 +83,10 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
         stopBtn.setPadding(Ui.px(this, 14), 0, 0, 0)
         stopBtn.setOnClickListener { stopOrStart() }
         bar.addView(stopBtn)
+        val help = Ui.text(this, "?", 22f, getColor(R.color.text_sub), true)
+        help.setPadding(Ui.px(this, 14), 0, 0, 0)
+        help.setOnClickListener { showConnHelp() }
+        bar.addView(help)
         val menu = Ui.text(this, "⋮", 22f, getColor(R.color.text_sub), true)
         menu.setPadding(Ui.px(this, 14), 0, 0, 0)
         menu.setOnClickListener {
@@ -489,5 +493,37 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) Ui.immersive(this)
+    }
+
+    /** 右上角「?」：弹出连接说明（Java 版 / 基岩版 / 账号绑定） */
+    private fun showConnHelp() {
+        val srv = Store.findServer(id) ?: JSONObject()
+        val bv = srv.optString("bedrockVersion")
+        val port = srv.optInt("port", 25565)
+        val cross = srv.optString("core") == Cores.CROSSPLAY
+        val sb = StringBuilder()
+        sb.append("Java 版（电脑）\n")
+        sb.append("朋友在「多人游戏 → 直接连接」输入控制台显示的服务器地址（IP:端口）即可。\n\n")
+        sb.append("基岩版（手机 / 平板）\n")
+        sb.append("「游戏 → 服务器 → 添加服务器」，端口填 19132；地址填控制台显示的「基岩版连接地址」（局域网 IP:19132）—— 同一台手机自连、同一 WiFi 其他设备，都填这个地址。\n")
+        sb.append("首次连接弹「是否信任此服务器」选信任；")
+        if (cross && bv.isNotEmpty()) sb.append("基岩版 1.26.40 ~ $bv 都可以进（太老或太新会一直卡在“正在连接”）。\n\n")
+        else sb.append("基岩版 1.26.40 以上版本都可以进。\n\n")
+        sb.append("账号绑定（Java / 基岩数据互通）\n")
+        sb.append("互通服已内置绑定数据库（SQLite）。绑定后，一个玩家在 Java 端和基岩端登录都会用同一份存档数据。绑定方法：① 先用 Java 端进一次服，在聊天栏输入 /linkaccount，会得到一个数字码；② 再用基岩端进服，输入 /linkaccount 数字码；③ 两端会被踢出并提示绑定成功。换号解绑用 /unlinkaccount。\n")
+        sb.append("\n外网联机需在路由器放行 TCP+UDP ${port}（互通服还要放行 UDP 19133）。")
+        val tv = TextView(this)
+        tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_DIP, 13.5f)
+        tv.setTextColor(getColor(R.color.text))
+        tv.setPadding(Ui.px(this, 22), Ui.px(this, 16), Ui.px(this, 22), Ui.px(this, 16))
+        tv.movementMethod = android.text.method.LinkMovementMethod.getInstance()
+        tv.text = sb.toString()
+        val scroll = Ui.scroll(this)
+        scroll.addView(tv, ViewGroup.LayoutParams(-1, -2))
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("连接说明")
+            .setView(scroll)
+            .setPositiveButton("知道了", null)
+            .show()
     }
 }

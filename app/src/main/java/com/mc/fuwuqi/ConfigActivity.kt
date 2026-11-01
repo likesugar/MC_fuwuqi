@@ -262,7 +262,7 @@ class ConfigActivity : androidx.appcompat.app.AppCompatActivity() {
         Store.updateServer(srv.optString("id"), JSONObject().put("memoryMb", memory)
             .put("port", props["server-port"]?.toIntOrNull() ?: srv.optInt("port", 25565))
             .put("motd", props["motd"] ?: srv.optString("motd"))
-            .put("maxPlayers", props["max-players"]?.toIntOrNull() ?: srv.optInt("maxPlayers", 20))
+            .put("maxPlayers", props["max-players"]?.toIntOrNull() ?: srv.optInt("maxPlayers", 5))
             .put("onlineMode", props["online-mode"] == "true"))
         Ui.toast(this, "已保存，重启服务器后生效")
     }

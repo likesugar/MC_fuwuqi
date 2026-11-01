@@ -149,7 +149,7 @@ object ServerManager {
                 if (!props.exists()) {
                     props.writeText("server-port=${srv.optInt("port", 25565)}\n" +
                         "motd=${srv.optString("motd", "A Minecraft Server")}\n" +
-                        "max-players=${srv.optInt("maxPlayers", 20)}\n" +
+                        "max-players=${srv.optInt("maxPlayers", 5)}\n" +
                         "online-mode=${srv.optBoolean("onlineMode", false)}\n" +
                         "difficulty=${srv.optString("difficulty", "easy")}\ngamemode=${srv.optString("gamemode", "survival")}\nenable-rcon=false\nspawn-protection=0\nview-distance=6\nsimulation-distance=4\nsync-chunk-writes=false\nuse-native-transport=true\nnetwork-compression-threshold=256\nmax-tick-time=-1\n")
                 }

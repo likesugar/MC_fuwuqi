@@ -16,7 +16,7 @@ import org.json.JSONObject
 class NewServerActivity3 : androidx.appcompat.app.AppCompatActivity() {
 
     private var memory = 2048
-    private var maxPlayers = 20
+    private var maxPlayers = 5
     private var onlineMode = false
     private var difficulty = "easy"
     private var gamemode = "survival"
@@ -189,6 +189,7 @@ class NewServerActivity3 : androidx.appcompat.app.AppCompatActivity() {
                     runOnUiThread {
                         val bv = o.optString("bedrockVersion")
                         Ui.toast(this, if (bv.isNotEmpty()) "创建完成 · 基岩版 $bv（端口 19132）" else "创建完成")
+                        setResult(android.app.Activity.RESULT_OK)
                         val i3 = Intent(this, ConsoleActivity::class.java).putExtra("id", o.optString("id"))
                         startActivity(i3)
                         finish()

@@ -251,11 +251,17 @@ class NewServerActivity2 : androidx.appcompat.app.AppCompatActivity() {
             i2.putExtra("name", nameE.text?.toString()?.trim().takeUnless { it.isNullOrEmpty() } ?: "我的服务器")
             i2.putExtra("port", portE.text?.toString()?.toIntOrNull() ?: 25565)
             i2.putExtra("motd", motdE.text?.toString()?.trim().takeUnless { it.isNullOrEmpty() } ?: "Minecraft Server")
-            startActivity(i2)
+            startActivityForResult(i2, 100)
         }
 
         setContentView(root)
         Ui.immersive(this)
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        // 第 3 步创建成功后，连第 2 步（创建服务器页面）一起关掉，回退不再落回创建页
+        if (requestCode == 100 && resultCode == android.app.Activity.RESULT_OK) finish()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
