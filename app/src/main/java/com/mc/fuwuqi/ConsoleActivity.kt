@@ -121,6 +121,11 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
         val addrRow = Ui.linear(this, false)
         addrRow.gravity = Gravity.CENTER_VERTICAL
         addrRow.addView(Ui.text(this, "联机地址", 14f, getColor(R.color.text_sub)), Ui.lp(0, -2, 1f))
+        // 性能小字（CPU / 内存）贴在标题行右侧：运行时才显示，但不额外占一行高度，
+        // 否则启动后地址卡与日志框之间会被撑开（停止时隐藏 → 高度不一致）
+        perfText = Ui.text(this, "", 12f, getColor(R.color.text_sub))
+        perfText.visibility = View.GONE
+        addrRow.addView(perfText, Ui.lp(-2, -2))
         addrCard.addView(addrRow)
         addrText = Ui.text(this, "", 22f, getColor(R.color.green), true)
         addrText.setPadding(0, Ui.px(this, 2), 0, 0)
@@ -162,11 +167,7 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
         root.addView(keepAliveTip)
 
 
-        // 性能面板（12/5）：CPU / 内存 实时（无服务器时隐藏，避免地址卡与日志框之间空隙过大）
-        perfText = Ui.text(this, "", 12f, getColor(R.color.text_sub))
-        perfText.setPadding(Ui.px(this, 24), Ui.px(this, 6), Ui.px(this, 24), 0)
-        perfText.visibility = View.GONE
-        root.addView(perfText)
+        // 性能面板：perfText 已在地址卡标题行内创建，这里只挂定时刷新
         perfHandler = android.os.Handler(android.os.Looper.getMainLooper())
         perfTick = object : Runnable {
             var lastJf = 0L; var lastSys = 0L
