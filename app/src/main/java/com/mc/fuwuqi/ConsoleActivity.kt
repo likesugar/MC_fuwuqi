@@ -29,7 +29,6 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
     private lateinit var stopBtn: TextView
     private lateinit var addrCard: LinearLayout
     private lateinit var addrText: TextView
-    private lateinit var connHint: TextView
     private lateinit var keepAliveTip: TextView
     private lateinit var listenState: TextView
     private lateinit var input: EditText
@@ -148,16 +147,11 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
         addrText.setOnClickListener { doCopy() }
         copyHint.setOnClickListener { doCopy() }
         root.addView(addrCard, Ui.lp(-1, -2).also { (it as LinearLayout.LayoutParams).setMargins(Ui.px(this, 20), 0, Ui.px(this, 20), 0) })
-
         // 电池优化未豁免时提示（Doze 会掐网，长连接直接 reset）
         keepAliveTip = Ui.text(this, "", 12f, getColor(R.color.amber_text), true)
         keepAliveTip.setPadding(Ui.px(this, 24), Ui.px(this, 10), Ui.px(this, 24), 0)
         keepAliveTip.setOnClickListener { openBatterySettings() }
         root.addView(keepAliveTip)
-
-        connHint = Ui.text(this, "同一 WiFi 下，朋友在「多人游戏 → 直接连接」输入上面地址即可。端口不通时先看日志有没有 Done。", 12f, getColor(R.color.text_sub))
-        connHint.setPadding(Ui.px(this, 24), Ui.px(this, 10), Ui.px(this, 24), 0)
-        root.addView(connHint)
 
         // 性能面板（12/5）：CPU / 内存 实时
         perfText = Ui.text(this, "", 12f, getColor(R.color.text_sub))
@@ -375,9 +369,8 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
         stopBtn.text = if (running) "停止" else "启动"
         stopBtn.setTextColor(getColor(if (running) R.color.danger else R.color.green))
         val ip = ServerManager.localIp()
-        addrText.text = if (running && ip.isNotEmpty()) "$ip:$port" else "—"
-        connHint.text =
-            "同一 WiFi 下，朋友在「多人游戏 → 直接连接」输入上面地址即可。端口不通时先看日志有没有 Done。"
+        // 运行中必有地址：拿到局域网 IP 显示它；纯流量等拿不到时显示 127.0.0.1（本机自连可用）
+        addrText.text = if (running) "${ip.ifEmpty { "127.0.0.1" }}:$port" else "—"
         try {
             val pm = getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
             if (pm.isIgnoringBatteryOptimizations(packageName)) {
