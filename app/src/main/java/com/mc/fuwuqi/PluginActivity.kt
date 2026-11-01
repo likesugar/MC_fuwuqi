@@ -9,7 +9,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import org.json.JSONArray
 
-/** 插件管理：常用 Paper 插件一键装（Modrinth 源） */
+/** 插件管理：常用 Paper 插件一键装（仓库代理源：raw + gh-proxy 国内加速） */
 class PluginActivity : androidx.appcompat.app.AppCompatActivity() {
 
     private lateinit var id: String
@@ -57,7 +57,7 @@ class PluginActivity : androidx.appcompat.app.AppCompatActivity() {
 
     private fun render() {
         listWrap.removeAllViews()
-        val tip = Ui.text(this, "插件会下载到服务器 plugins 目录，安装后需「停止」再「启动」生效。", 12f, getColor(R.color.text_sub))
+        val tip = Ui.text(this, "插件从仓库代理源（国内 CDN）下载到服务器 plugins 目录，安装后需「停止」再「启动」生效。", 12f, getColor(R.color.text_sub))
         tip.setPadding(0, 0, 0, Ui.px(this, 8))
         listWrap.addView(tip)
         for (p in plugins) {
@@ -96,22 +96,13 @@ class PluginActivity : androidx.appcompat.app.AppCompatActivity() {
         Thread {
             var msg = ""
             try {
-                val api = "https://api.modrinth.com/v2/project/$slug/version" +
-                    "?loaders=%5B%22paper%22%2C%22spigot%22%5D&game_versions=%5B%22$mcVersion%22%5D"
-                val arr: JSONArray = try { JSONArray(Dl.fetchText(api)) }
-                catch (e: Exception) { JSONArray(Dl.fetchText("https://api.modrinth.com/v2/project/$slug/version")) }
-                require(arr.length() > 0) { "Modrinth 上没有适配 $mcVersion 的版本" }
-                val files = arr.getJSONObject(0).getJSONArray("files")
-                var url = ""
-                var fname = "$name.jar"
-                for (i in 0 until files.length()) {
-                    val f = files.getJSONObject(i)
-                    if (f.optBoolean("primary")) { url = f.optString("url"); fname = f.optString("filename"); break }
-                }
-                if (url.isEmpty() && files.length() > 0) { url = files.getJSONObject(0).optString("url"); fname = files.getJSONObject(0).optString("filename") }
-                require(url.isNotEmpty()) { "没有可用下载" }
-                Dl.download(url, java.io.File(pluginDir(), fname)) { c, t ->
+                // 仓库代理源：raw 直链为主，Dl.download 自动走 gh-proxy / ghproxy 国内加速兜底
+                val url = "https://raw.githubusercontent.com/likesugar/MC_fuwuqi/main/plugins/$slug.jar"
+                val dest = java.io.File(pluginDir(), "$slug.jar")
+                dest.delete()
+                val ok = Dl.download(url, dest) { c, t ->
                     runOnUiThread { go.text = "下载 $name ${Container.fmt(c)}" + (if (t > 0) " / ${Container.fmt(t)}" else "") } }
+                require(ok && dest.isFile && dest.length() > 0) { "下载失败，请检查网络或稍后重试" }
                 msg = "OK"
             } catch (e: Exception) { msg = e.message ?: e.toString() }
             val finalMsg = msg
