@@ -68,6 +68,27 @@ class PaperPluginsActivity : androidx.appcompat.app.AppCompatActivity() {
 
         // 插件仓库（本地下载，下载一次可给任意服务器启用）
         val rc = sectionCard("插件仓库", "从本仓库下载到本地，下载一次后可给任意服务器启用（开启需重启服务器生效）")
+        // 多线程「下载全部」：并行下载所有未下载的插件
+        val allPending = PaperPlugins.LIST.count { !PaperPlugins.isDownloaded(it.slug) }
+        if (allPending > 0) {
+            val head = Ui.linear(this, false); head.gravity = Gravity.END or Gravity.CENTER_VERTICAL
+            val allBtn = Ui.text(this, "下载全部 ($allPending)", 14f, getColor(R.color.green), true)
+            allBtn.setBackgroundResource(R.drawable.bg_console)
+            allBtn.setPadding(Ui.px(this, 14), Ui.px(this, 8), Ui.px(this, 14), Ui.px(this, 8))
+            allBtn.setOnClickListener {
+                if (busy) { Ui.toast(this, "有任务进行中"); return@setOnClickListener }
+                busy = true
+                val n0 = allPending
+                allBtn.text = "下载中 0/$n0"
+                Thread {
+                    val ok = PaperPlugins.downloadAll(3) { d, t -> runOnUiThread { allBtn.text = "下载中 $d/$t" } }
+                    runOnUiThread { busy = false; Ui.toast(this, if (ok) "全部下载完成 ✅" else "部分下载失败"); render() }
+                }.start()
+            }
+            head.addView(allBtn)
+            rc.addView(head)
+            rc.addView(hLine())
+        }
         for (p in PaperPlugins.LIST) {
             val row = Ui.linear(this, false)
             row.gravity = Gravity.CENTER_VERTICAL

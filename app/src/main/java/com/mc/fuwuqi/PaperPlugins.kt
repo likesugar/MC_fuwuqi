@@ -4,6 +4,10 @@ import java.io.File
 import java.io.RandomAccessFile
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 /** Paper 插件统一仓库：从 GitHub raw 直链下载到本地仓库，再按服务器开关 */
 object PaperPlugins {
@@ -28,6 +32,34 @@ object PaperPlugins {
         val dest = globalFile(slug)
         if (dest.isFile && dest.length() > 0) return true
         return rawDownload("$REPO/$slug.jar", dest, cb)
+    }
+
+    /**
+     * 多线程并行下载所有未下载的插件（固定线程池，互不阻塞），
+     * cb(已完成数, 总数) 在主线程外回调；全部成功返回 true。
+     * 各插件写入独立文件，无共享写冲突。
+     */
+    fun downloadAll(poolSize: Int = 3, cb: (Int, Int) -> Unit): Boolean {
+        val pending = LIST.filter { !isDownloaded(it.slug) }
+        if (pending.isEmpty()) { cb(0, 0); return true }
+        val total = pending.size
+        val done = AtomicInteger(0)
+        val failed = AtomicBoolean(false)
+        val latch = CountDownLatch(total)
+        val pool = Executors.newFixedThreadPool(minOf(poolSize, total))
+        for (p in pending) {
+            pool.submit {
+                try {
+                    if (!downloadGlobal(p.slug) { _, _ -> }) failed.set(true)
+                } finally {
+                    cb(done.incrementAndGet(), total)
+                    latch.countDown()
+                }
+            }
+        }
+        latch.await()
+        pool.shutdown()
+        return !failed.get()
     }
 
     /** 对某服务器启用插件：确保全局已下载，再拷到该服 plugins/；cb 仅用于下载进度 */
