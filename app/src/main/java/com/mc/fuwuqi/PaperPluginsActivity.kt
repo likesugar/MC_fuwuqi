@@ -16,9 +16,11 @@ class PaperPluginsActivity : androidx.appcompat.app.AppCompatActivity() {
     private var servers: List<JSONObject> = emptyList()
     private var selIdx = 0
     private var busy = false
+    private var preferId = ""
 
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
+        preferId = intent?.getStringExtra("id") ?: ""
         val root = Ui.linear(this, true)
         root.setBackgroundColor(getColor(R.color.bg))
         root.addView(Ui.topBar(this, "Paper 插件", "统一下载 · 按服务器开关"))
@@ -47,6 +49,12 @@ class PaperPluginsActivity : androidx.appcompat.app.AppCompatActivity() {
                 "还没有可用的 Bukkit 系服务器（Paper / 互通服 / Purpur）。先去创建一个吧。",
                 14f, getColor(R.color.text_sub)).also { it.setPadding(0, Ui.px(this, 30), 0, 0) })
             return
+        }
+        // 从控制台「插件管理」进入时，自动选中当前服务器（仅首次）
+        if (preferId.isNotEmpty()) {
+            val idx = servers.indexOfFirst { it.optString("id") == preferId }
+            if (idx >= 0) selIdx = idx
+            preferId = ""
         }
         if (selIdx >= servers.size) selIdx = 0
         val serverDir = Store.serverDir(servers[selIdx].optString("id"))

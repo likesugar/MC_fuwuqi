@@ -96,8 +96,7 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
             }
             // Paper 插件只适用于 Bukkit 系核心（Paper/互通服/Purpur）
             if (Cores.isBukkitLike(srv.optString("core"))) pm.menu.add("插件管理").setOnMenuItemClickListener {
-                startActivity(Intent(this, PluginActivity::class.java)
-                    .putExtra("id", id).putExtra("mcVersion", srv.optString("mcVersion"))); true
+                startActivity(Intent(this, PaperPluginsActivity::class.java).putExtra("id", id)); true
             }
             pm.menu.add("备份世界").setOnMenuItemClickListener { backupWorld(); true }
             pm.menu.add(if (following) "恢复日志跟随" else "暂停日志跟随").setOnMenuItemClickListener {
