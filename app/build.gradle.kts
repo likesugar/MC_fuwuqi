@@ -12,7 +12,8 @@ android {
         minSdk = 24
         targetSdk = 36
         versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
-        versionName = "1.0"
+        // versionName 带 build 号（与 release tag v1.0-<run_number> 一致），安装后一眼确认是不是最新版
+        versionName = "1.0-${System.getenv("GITHUB_RUN_NUMBER") ?: "1"}"
     }
 
     signingConfigs {
