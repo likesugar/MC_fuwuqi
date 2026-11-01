@@ -147,12 +147,12 @@ class SettingsActivity : androidx.appcompat.app.AppCompatActivity() {
         hc.addView(Ui.text(this, "基岩版（手机 / 平板）", 16f, getColor(R.color.text), true).also {
             it.setPadding(0, Ui.px(this, 12), 0, 0) })
         hc.addView(Ui.text(this,
-            "「游戏 → 服务器 → 添加服务器」，端口填 19132；地址填控制台显示的「基岩版连接地址」（局域网 IP:19132）—— 同一台手机自连、同一 WiFi 其他设备，都填这个地址。首次连接弹「是否信任此服务器」选信任；客户端版本需与控制台显示的对应版本一致（不匹配会一直卡在“正在连接”）。",
+            "「游戏 → 服务器 → 添加服务器」，端口填 19132；地址填控制台显示的「基岩版连接地址」（局域网 IP:19132）—— 同一台手机自连、同一 WiFi 其他设备，都填这个地址。首次连接弹「是否信任此服务器」选信任；基岩版 1.26.40 ~ 控制台显示的对应版本之间都可以进（太老或太新的版本会一直卡在“正在连接”）。",
             13f, getColor(R.color.text_sub)).also { it.setPadding(0, Ui.px(this, 4), 0, 0) })
         hc.addView(Ui.text(this, "基岩版连接（官方教程方式）", 16f, getColor(R.color.text), true).also {
             it.setPadding(0, Ui.px(this, 12), 0, 0) })
         hc.addView(Ui.text(this,
-            "按 Geyser 官方教程：基岩通道走 19132（UDP）。连接步骤：① 游戏内「服务器 → 添加服务器」，地址填控制台显示的局域网 IP（192.168.x.x 或 10.x.x.x）、端口 19132；② 首次连接弹「是否信任此服务器」选信任；③ 基岩版版本需与控制台显示的对应版本一致（不匹配会一直卡在“正在连接”）。外网联机需在路由器放行 UDP 19132。",
+            "基岩双通道：老客户端（1.26.40~1.26.59）走 RakNet（UDP 19132），新客户端（1.26.60+）走 NetherNet（信令 TCP 19132 + WebRTC UDP 19133）。连接步骤：① 游戏内「服务器 → 添加服务器」，地址填控制台显示的局域网 IP（192.168.x.x 或 10.x.x.x）、端口 19132；② 首次连接弹「是否信任此服务器」选信任。外网联机需在路由器同时放行 TCP+UDP 19132 和 UDP 19133。",
             13f, getColor(R.color.text_sub)).also { it.setPadding(0, Ui.px(this, 4), 0, 0) })
         hc.addView(Ui.text(this, "账号绑定（Java / 基岩数据互通）", 16f, getColor(R.color.text), true).also {
             it.setPadding(0, Ui.px(this, 12), 0, 0) })

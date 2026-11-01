@@ -236,12 +236,15 @@ object Cores {
     } catch (_: Exception) { null }
 
     /**
-     * 这版 Geyser 是否带 NetherNet（基岩 26.60 起的新传输层）。
-     * 按包里有没有 nethernet 实现判断，比猜版本号阈值可靠。
+     * 这版 Geyser 在手机（linux aarch64）上能否真正跑 NetherNet。
+     * 只查「有没有 nethernet 类」不够——旧 master 构建（如 b1240）有类但没带
+     * linux-glibc-aarch64 的 libdatachannel 原生库，启动时 WebRTC 加载失败
+     * （"NetherNet will not start! ... libdatachannel.so.0: cannot open shared object file"），
+     * NetherNet 起不来基岩就进不去。这里直接查 jar 里是否打包了 aarch64 原生库。
      */
     fun supportsNetherNet(jar: File): Boolean = try {
         jar.isFile && java.util.zip.ZipFile(jar).use { z ->
-            z.getEntry("org/geysermc/geyser/network/bedrock/nethernet/NetherNetServer.class") != null
+            z.getEntry("linux-glibc-aarch64/native/libdatachannel-java.so") != null
         }
     } catch (_: Exception) { false }
 
@@ -256,7 +259,7 @@ object Cores {
         val gjar = File(plugins, "Geyser-Spigot.jar")
         if (supportsNetherNet(gjar)) return
         val old = if (gjar.isFile) geyserVersion(gjar) ?: "未知版本" else "未安装"
-        cb("Geyser $old 不支持基岩 26.60 的 NetherNet，正在更新（约 50MB，请稍候）…")
+        cb("Geyser $old 缺少手机版 NetherNet 组件（aarch64 WebRTC 库），正在更新（约 50MB，请稍候）…")
         val tmp = File(plugins, "Geyser-Spigot.new.jar")
         tmp.delete()
         val ok = try {
@@ -431,22 +434,31 @@ object Cores {
     /**
      * Geyser 2.x 的配置骨架。
      *
-     * 注意（2026-10 线上问题复盘）：
+     * 注意（2026-11 线上问题复盘，v1.0-87）：
      * - auth-type 在 Geyser 2.x 里属 java 段，写成顶层键会被整段丢弃，Geyser 退回 online，
      *   基岩玩家于是被要求用 Java 正版账号登录，表现就是"开了互通但基岩版进不去"。
-     * - 按 Geyser 官方教程（wiki.geysermc.org/geyser/setup）：基岩走 bedrock.port 19132（UDP/RakNet），
-     *   transport 用官方默认 raknet；官方 config 文档也没有 signaling/webrtc-port 这些键。
-     *   实测 nethernet/both 在手机 proot 环境下整个基岩模块起不来（连纯 RakNet 老客户端都进不去），
-     *   官方默认 raknet 不碰 WebRTC，是唯一在 proot 下可行的通道。
+     * - Geyser 最新构建已把 transport 的 `raknet` 单通道值移除（启动时警告
+     *   "The raknet-only transport has now been REMOVED!" 并强制转 NetherNet），
+     *   合法值只剩 nethernet / both。而旧构建（b1240 时期）没带 linux-aarch64 的 WebRTC
+     *   原生库，NetherNet 在手机上必然启动失败 → 两条通道全断 → 基岩版必进不去。
+     * - 现在配 transport: both（RakNet + NetherNet 双开）：
+     *   1.26.45 等老客户端走 RakNet（UDP 19132）稳定直连；
+     *   1.26.60 等新客户端走 NetherNet（TCP 19132 信令 + UDP 19133 WebRTC）。
+     *   both 模式下 RakNet 与 NetherNet 各需一个独立 UDP 端口，故 webrtc-port: 19133。
      * - java.port 必须跟随用户实际设置的 Java 端口，否则改了端口后 Geyser 连不上后端。
      */
     fun crossplayConfig(onlineMode: Boolean, javaPort: Int, advertiseIps: List<String> = emptyList()): String {
-        // 官方教程：基岩玩家连「本机局域网 IPv4 + 端口 19132」，同机用 127.0.0.1 亦可（RakNet 无 WebRTC loopback 限制）
+        val ips = advertiseIps.filter { it.isNotBlank() && it != "127.0.0.1" }
+        val adv = if (ips.isEmpty()) "[]" else ips.joinToString(", ", "[", "]") { "\"$it\"" }
         return "bedrock:\n" +
         "  address: 0.0.0.0\n" +
         "  port: 19132\n" +
-        "  transport: raknet\n" +
+        "  webrtc-port: 19133\n" +
+        "  transport: both\n" +
         "  clone-remote-port: false\n" +
+        "  signaling:\n" +
+        "    mode: builtin\n" +
+        "    advertise-addresses: $adv\n" +
         "java:\n" +
         "  address: 127.0.0.1\n" +
         "  port: $javaPort\n" +
@@ -471,12 +483,15 @@ object Cores {
             return
         }
         t = patchSection(t, "bedrock", "port", "19132")
-        // 官方默认：transport: raknet（19132 UDP）。RakNet 模式下客户端直连用户填的 IP:19132，
-        // 不需要 signaling / advertise / webrtc-port —— 这些是 NetherNet 专属键，残留反而可能干扰启动
-        t = patchSection(t, "bedrock", "transport", "raknet")
+        // transport: both —— 最新 Geyser 已移除 raknet 单通道值；both 下老客户端走 RakNet(UDP 19132)、
+        // 新客户端走 NetherNet(WebRTC UDP 19133)。webrtc-port 必须与 port 不同，否则 Geyser 启动报错
+        t = patchSection(t, "bedrock", "transport", "both")
+        t = patchSection(t, "bedrock", "webrtc-port", "19133")
         t = patchSection(t, "bedrock", "clone-remote-port", "false")
-        t = removeKey(t, "bedrock", "webrtc-port")
-        t = removeSection(t, "signaling")
+        // signaling 段：NetherNet 客户端靠它找到服务器；通告本机局域网 IP，
+        // 留空时 Geyser 走 STUN 探公网地址，NAT 后必连不上
+        t = ensureSignalingBlock(t)
+        t = patchSignalingAddress(t, advertiseIps)
         t = patchSection(t, "java", "address", "127.0.0.1")
         t = patchSection(t, "java", "port", javaPort.toString())
         t = patchSection(t, "java", "auth-type", auth)
@@ -487,13 +502,14 @@ object Cores {
      * 把 bedrock.signaling.advertise-addresses 固定成本机局域网地址。
      *
      * 这是 NetherNet 的关键一步：客户端先走 TCP 信令问"服务器在哪"，服务端回一个地址，
-     * 客户端再连那个地址的 UDP。地址留空时 Geyser 会用 STUN 探到的公网地址，
+     * 客户端再连那个地址的 UDP（webrtc-port）。通告值不带端口时客户端自动用 NetherNet UDP 端口。
+     * 地址留空时 Geyser 会用 STUN 探到的公网地址，
      * 家用/热点网络通常没有端口转发 → 客户端连公网地址必然失败 → 报 Terracotta / 149。
      */
     internal fun patchSignalingAddress(text: String, addrs: List<String>): String {
         val valid = addrs.filter { it.isNotBlank() && it != "127.0.0.1" }
         if (valid.isEmpty()) return text
-        val adv = valid.joinToString(", ", "[", "]") { "\"$it:19132\"" }
+        val adv = valid.joinToString(", ", "[", "]") { "\"$it\"" }
         val lines = text.lines().toMutableList()
         val sig = lines.indexOfFirst { it.trimEnd() == "  signaling:" }
         if (sig < 0) return text
@@ -535,8 +551,7 @@ object Cores {
         lines.addAll(ins, listOf(
             "  signaling:",
             "    mode: builtin",
-            "    advertise-addresses: []",
-            "    stun-discovery: true"))
+            "    advertise-addresses: []"))
         return lines.joinToString("\n")
     }
 

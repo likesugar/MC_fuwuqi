@@ -387,8 +387,8 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
             val lan = if (running && ip.isNotEmpty()) "$ip:19132" else ""
             bedrockText.visibility = View.VISIBLE
             bedrockText.text = "基岩版连接地址：${lan.ifEmpty { "本机局域网IP:19132" }}" +
-                "（同一台手机自连、同一 WiFi 其他设备，都填这个地址；删掉旧条目重新添加）· 对应版本 " +
-                bv.ifEmpty { "识别中…" }
+                "（同一台手机自连、同一 WiFi 其他设备，都填这个地址；删掉旧条目重新添加）· 基岩版 1.26.40 ~ " +
+                bv.ifEmpty { "识别中…" } + " 均可进"
             bedrockText.tag = lan
             if (bv.isEmpty() && !bvLoading) {
                 bvLoading = true

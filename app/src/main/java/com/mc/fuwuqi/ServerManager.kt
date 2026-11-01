@@ -170,12 +170,12 @@ object ServerManager {
                         Cores.ensureFloodgateLinking(dir) { emit("· $it") }
                         val lanIp = lanIps.firstOrNull() ?: ""
                         val addrHint = if (lanIp.isNotEmpty()) "$lanIp:19132" else "本机局域网IP:19132"
-                        emit("· 互通配置已校正：基岩端口 19132（官方 RakNet/UDP）。" +
+                        emit("· 互通配置已校正：基岩双通道（RakNet UDP 19132 + NetherNet）。" +
                             "同一台手机、同一 WiFi 其他设备，基岩版都填 $addrHint（删掉旧条目重新添加）")
                     } catch (e: Exception) { emit("· 互通配置校正失败：${e.message}") }
-                    // 这版 Geyser 支持的基岩版版本：手机端必须一致，否则一直卡在“正在连接”
+                    // 这版 Geyser 支持的基岩版版本区间上限：1.26.40 ~ 该版本都可连（RakNet/NetherNet 双通道）
                     Cores.bedrockVersion(File(dir, "plugins/Geyser-Spigot.jar"))?.let { bv ->
-                        emit("· 基岩版对应版本 $bv（手机端需同版本，地址 IP:19132）")
+                        emit("· 基岩版 1.26.40 ~ $bv 均可连接（地址 IP:19132，1.26.60 需网络支持 WebRTC）")
                         if (bv != srv.optString("bedrockVersion"))
                             Store.updateServer(srv.optString("id"), JSONObject().put("bedrockVersion", bv))
                     }

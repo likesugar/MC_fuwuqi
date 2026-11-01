@@ -122,9 +122,9 @@ class NewServerActivity : androidx.appcompat.app.AppCompatActivity() {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 if (core != Cores.CROSSPLAY) return@runOnUiThread
                 crossTip.text = if (bv != null)
-                    "📱 基岩版对应版本：$bv" + (if (gv != null) "（Geyser $gv）" else "") + " —— 手机端必须同版本才能进服"
+                    "📱 基岩版可连版本：1.26.40 ~ $bv" + (if (gv != null) "（Geyser $gv）" else "") + " —— 该区间内的基岩客户端都能进服"
                 else
-                    "📱 基岩版对应版本：创建时自动检测。Geyser 只支持一个基岩版版本，版本不匹配会一直卡在“正在连接”"
+                    "📱 基岩版可连版本：创建时自动检测。1.26.40 以上的基岩客户端都可进服，版本太老或太新会一直卡在“正在连接”"
             }
         }.start()
     }
