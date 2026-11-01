@@ -29,8 +29,8 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
     private lateinit var stopBtn: TextView
     private lateinit var addrCard: LinearLayout
     private lateinit var addrText: TextView
+    private lateinit var bedrockText: TextView
     private lateinit var keepAliveTip: TextView
-    private lateinit var listenState: TextView
     private lateinit var input: EditText
     private lateinit var quick: LinearLayout
     private var following = false
@@ -38,6 +38,7 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
     private lateinit var perfHandler: android.os.Handler
     private lateinit var perfTick: Runnable
     private var readyNotified = false
+    private var bvLoading = false
 
     private val lineCb: (String) -> Unit = { line ->
         runOnUiThread {
@@ -68,7 +69,7 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
 
         // 顶栏：返回 + 名称/状态 + 停止/启动
         val bar = Ui.linear(this, false)
-        bar.setPadding(Ui.px(this, 20), Ui.px(this, 36), Ui.px(this, 20), Ui.px(this, 10))
+        bar.setPadding(Ui.px(this, 20), Ui.px(this, 36), Ui.px(this, 20), Ui.px(this, 2))
         bar.gravity = Gravity.CENTER_VERTICAL
         val back = Ui.text(this, "←", 24f, getColor(R.color.text))
         back.setPadding(0, 0, Ui.px(this, 16), 0)
@@ -90,7 +91,7 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
             pm.menu.add("服务器配置").setOnMenuItemClickListener {
                 startActivity(Intent(this, ConfigActivity::class.java).putExtra("id", id)); true
             }
-            // Paper 插件只适用于 Bukkit 系核心（Paper/Purpur）
+            // Paper 插件只适用于 Bukkit 系核心（Paper/互通服/Purpur）
             if (Cores.isBukkitLike(srv.optString("core"))) pm.menu.add("插件管理").setOnMenuItemClickListener {
                 startActivity(Intent(this, PluginActivity::class.java)
                     .putExtra("id", id).putExtra("mcVersion", srv.optString("mcVersion"))); true
@@ -117,24 +118,18 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
         // 联机地址卡（灰底）
         addrCard = Ui.linear(this, true)
         addrCard.setBackgroundResource(R.drawable.bg_console)
-        addrCard.setPadding(Ui.px(this, 18), Ui.px(this, 14), Ui.px(this, 18), Ui.px(this, 16))
+        addrCard.setPadding(Ui.px(this, 18), Ui.px(this, 12), Ui.px(this, 18), Ui.px(this, 12))
         val addrRow = Ui.linear(this, false)
         addrRow.gravity = Gravity.CENTER_VERTICAL
         addrRow.addView(Ui.text(this, "联机地址", 14f, getColor(R.color.text_sub)), Ui.lp(0, -2, 1f))
-        listenState = Ui.text(this, "", 13f, getColor(R.color.text_sub))
-        addrRow.addView(listenState)
         addrCard.addView(addrRow)
         addrText = Ui.text(this, "", 22f, getColor(R.color.green), true)
-        addrText.setPadding(0, Ui.px(this, 6), 0, 0)
+        addrText.setPadding(0, Ui.px(this, 2), 0, 0)
         addrCard.addView(addrText)
-        val copyHint = Ui.text(this, "点击复制", 12f, getColor(R.color.text_sub))
-        copyHint.gravity = Gravity.RIGHT
-        copyHint.setPadding(0, Ui.px(this, 6), 0, 0)
-        addrCard.addView(copyHint, Ui.lp(-1, -2))
-        // 整卡可点：复制联机地址（空地址时提示）
+        // 整卡可点：复制联机地址（空/"—"时提示）
         val doCopy = {
             val addr = addrText.text?.toString()?.trim() ?: ""
-            if (addr.isEmpty()) {
+            if (addr.isEmpty() || addr == "—") {
                 Ui.toast(this, "暂无联机地址（服务器未就绪）")
             } else {
                 val cm = getSystemService(ClipboardManager::class.java)
@@ -145,13 +140,28 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
         }
         addrCard.setOnClickListener { doCopy() }
         addrText.setOnClickListener { doCopy() }
-        copyHint.setOnClickListener { doCopy() }
+        // 互通服：单独一行给基岩版（手机/平板）地址与对应版本
+        bedrockText = Ui.text(this, "", 13f, getColor(R.color.text_sub))
+        bedrockText.setPadding(0, Ui.px(this, 8), 0, 0)
+        addrCard.addView(bedrockText)
+        bedrockText.setOnClickListener {
+            val a = bedrockText.tag?.toString().orEmpty()
+            if (a.isEmpty()) {
+                Ui.toast(this, "服务器未运行，暂无基岩地址")
+            } else {
+                getSystemService(ClipboardManager::class.java)
+                    .setPrimaryClip(ClipData.newPlainText("bedrock", a))
+                Ui.toast(this, "已复制基岩地址：$a")
+            }
+        }
         root.addView(addrCard, Ui.lp(-1, -2).also { (it as LinearLayout.LayoutParams).setMargins(Ui.px(this, 20), 0, Ui.px(this, 20), 0) })
+
         // 电池优化未豁免时提示（Doze 会掐网，长连接直接 reset）
         keepAliveTip = Ui.text(this, "", 12f, getColor(R.color.amber_text), true)
         keepAliveTip.setPadding(Ui.px(this, 24), Ui.px(this, 10), Ui.px(this, 24), 0)
         keepAliveTip.setOnClickListener { openBatterySettings() }
         root.addView(keepAliveTip)
+
 
         // 性能面板（12/5）：CPU / 内存 实时
         perfText = Ui.text(this, "", 12f, getColor(R.color.text_sub))
@@ -369,8 +379,34 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
         stopBtn.text = if (running) "停止" else "启动"
         stopBtn.setTextColor(getColor(if (running) R.color.danger else R.color.green))
         val ip = ServerManager.localIp()
-        // 运行中必有地址：拿到局域网 IP 显示它；纯流量等拿不到时显示 127.0.0.1（本机自连可用）
-        addrText.text = if (running) "${ip.ifEmpty { "127.0.0.1" }}:$port" else "—"
+        addrText.text = if (running && ip.isNotEmpty()) "$ip:$port" else "—"
+        // 互通服：显示基岩版地址 + 这版 Geyser 支持的基岩版版本
+        val isCross = srv.optString("core") == Cores.CROSSPLAY
+        val bv = srv.optString("bedrockVersion")
+        if (isCross) {
+            val lan = if (running && ip.isNotEmpty()) "$ip:19132" else ""
+            bedrockText.visibility = View.VISIBLE
+            bedrockText.text = "基岩版连接地址：${lan.ifEmpty { "本机局域网IP" }}:19132" +
+                "（同一台手机自连、同一 WiFi 其他设备，都填这个地址；删掉旧条目重新添加）· 对应版本 " +
+                bv.ifEmpty { "识别中…" }
+            bedrockText.tag = lan
+            if (bv.isEmpty() && !bvLoading) {
+                bvLoading = true
+                Thread {
+                    try {
+                        val jar = java.io.File(Store.serverDir(id), "plugins/Geyser-Spigot.jar")
+                        Cores.bedrockVersion(jar)?.let { v ->
+                            Store.updateServer(id, JSONObject().put("bedrockVersion", v))
+                            if (!isFinishing && !isDestroyed) runOnUiThread { render() }
+                        }
+                    } catch (_: Exception) {
+                    } finally { bvLoading = false }
+                }.start()
+            }
+        } else {
+            bedrockText.visibility = View.GONE
+            bedrockText.tag = ""
+        }
         try {
             val pm = getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
             if (pm.isIgnoringBatteryOptimizations(packageName)) {
@@ -380,8 +416,6 @@ class ConsoleActivity : androidx.appcompat.app.AppCompatActivity() {
                 keepAliveTip.text = "⚠ 未加入电池优化白名单：切后台/息屏久了会断网，客户端报 Connection reset。点这里开启 ›"
             }
         } catch (_: Exception) { keepAliveTip.visibility = View.GONE }
-        listenState.text = if (running) "● 端口已监听" else "○ 未运行"
-        listenState.setTextColor(getColor(if (running) R.color.green else R.color.text_sub))
         buildQuick(running)
     }
 
