@@ -67,20 +67,25 @@ class PaperPluginsActivity : androidx.appcompat.app.AppCompatActivity() {
         val serverDir = Store.serverDir(srv.optString("id"))
 
         if (!simple) {
-            // 选择服务器
+            // 选择服务器（横向可滚动，标签保持单行不挤压）
             listWrap.addView(Ui.text(this, "选择服务器", 15f, getColor(R.color.text), true))
             val serverRow = Ui.linear(this, false)
-            serverRow.setPadding(0, Ui.px(this, 8), 0, 0)
+            serverRow.setPadding(0, Ui.px(this, 8), Ui.px(this, 4), 0)
             servers.forEachIndexed { i, s ->
                 val chip = Ui.text(this, s.optString("name", "服务器"), 14f,
                     if (i == selIdx) getColor(R.color.green) else getColor(R.color.text), true)
+                chip.maxLines = 1                      // 单行，不换行
+                chip.ellipsize = null
                 chip.setBackgroundResource(if (i == selIdx) R.drawable.bg_tab_active else R.drawable.bg_card)
                 chip.setPadding(Ui.px(this, 16), Ui.px(this, 8), Ui.px(this, 16), Ui.px(this, 8))
                 chip.setOnClickListener { if (!busy) { selIdx = i; render() } }
                 val p = Ui.lp(-2, -2); p.rightMargin = Ui.px(this, 8)
                 serverRow.addView(chip, p)
             }
-            listWrap.addView(serverRow)
+            val hs = android.widget.HorizontalScrollView(this)
+            hs.setHorizontalScrollBarEnabled(false)
+            hs.addView(serverRow, ViewGroup.LayoutParams(-2, -2))
+            listWrap.addView(hs, Ui.lp(-1, -2))
         }
 
         // 本服务器开关（开启时若未下载会自动下载）
