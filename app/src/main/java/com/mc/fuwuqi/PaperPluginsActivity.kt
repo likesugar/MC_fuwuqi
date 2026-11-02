@@ -1,5 +1,6 @@
 package com.mc.fuwuqi
 
+import android.app.Dialog
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
@@ -27,7 +28,8 @@ class PaperPluginsActivity : androidx.appcompat.app.AppCompatActivity() {
         val root = Ui.linear(this, true)
         root.setBackgroundColor(getColor(R.color.bg))
         if (simple) root.addView(Ui.topBar(this, "插件管理", "开启/关闭后重启服务器生效"))
-        else root.addView(Ui.topBar(this, "Paper 插件", "统一下载 · 按服务器开关"))
+        else root.addView(Ui.topBar(this, "Paper 插件", "统一下载 · 按服务器开关",
+            Pair("插件仓库", View.OnClickListener { showRepoDialog() })))
         val scroll = Ui.scroll(this)
         listWrap = Ui.linear(this, true)
         listWrap.setPadding(Ui.px(this, 20), Ui.px(this, 8), Ui.px(this, 20), Ui.px(this, 24))
@@ -79,56 +81,6 @@ class PaperPluginsActivity : androidx.appcompat.app.AppCompatActivity() {
                 serverRow.addView(chip, p)
             }
             listWrap.addView(serverRow)
-
-            // 插件仓库（本地下载，下载一次可给任意服务器启用）
-            val rc = sectionCard("插件仓库", "从本仓库下载到本地，下载一次后可给任意服务器启用（开启需重启服务器生效）")
-            val allPending = PaperPlugins.LIST.count { !PaperPlugins.isDownloaded(it.slug) }
-            if (allPending > 0) {
-                val head = Ui.linear(this, false); head.gravity = Gravity.END or Gravity.CENTER_VERTICAL
-                val allBtn = Ui.text(this, "下载全部 ($allPending)", 14f, getColor(R.color.green), true)
-                allBtn.setBackgroundResource(R.drawable.bg_console)
-                allBtn.setPadding(Ui.px(this, 14), Ui.px(this, 8), Ui.px(this, 14), Ui.px(this, 8))
-                allBtn.setOnClickListener {
-                    if (busy) { Ui.toast(this, "有任务进行中"); return@setOnClickListener }
-                    busy = true
-                    val n0 = allPending
-                    allBtn.text = "下载中 0/$n0"
-                    Thread {
-                        val ok = PaperPlugins.downloadAll(3) { d, t -> runOnUiThread { allBtn.text = "下载中 $d/$t" } }
-                        runOnUiThread { busy = false; Ui.toast(this, if (ok) "全部下载完成 ✅" else "部分下载失败"); render() }
-                    }.start()
-                }
-                head.addView(allBtn)
-                rc.addView(head)
-                rc.addView(hLine())
-            }
-            for (p in PaperPlugins.LIST) {
-                val row = Ui.linear(this, false)
-                row.gravity = Gravity.CENTER_VERTICAL
-                row.setPadding(0, Ui.px(this, 12), 0, Ui.px(this, 12))
-                val col = Ui.linear(this, true)
-                col.addView(Ui.text(this, p.name, 16f, getColor(R.color.text), true))
-                col.addView(Ui.text(this, p.desc, 12f, getColor(R.color.text_sub)).also { it.setPadding(0, Ui.px(this, 2), 0, 0) })
-                row.addView(col, Ui.lp(0, -2, 1f))
-                val dled = PaperPlugins.isDownloaded(p.slug)
-                val btn = Ui.text(this, if (dled) "已下载 ✓" else "下载", 14f,
-                    if (dled) getColor(R.color.text_sub) else getColor(R.color.green), true)
-                btn.setBackgroundResource(R.drawable.bg_console)
-                btn.setPadding(Ui.px(this, 14), Ui.px(this, 8), Ui.px(this, 14), Ui.px(this, 8))
-                if (dled) btn.setOnClickListener(null) else btn.setOnClickListener {
-                    if (busy) { Ui.toast(this, "有任务进行中"); return@setOnClickListener }
-                    busy = true; btn.text = "下载中 …"
-                    Thread {
-                        val ok = PaperPlugins.downloadGlobal(p.slug) { c, t ->
-                            runOnUiThread { btn.text = "下载 ${c / 1024}KB" + if (t > 0) " / ${t / 1024}KB" else "" } }
-                        runOnUiThread { busy = false; Ui.toast(this, if (ok) "${p.name} 已下载" else "下载失败"); render() }
-                    }.start()
-                }
-                row.addView(btn)
-                rc.addView(row)
-                if (p != PaperPlugins.LIST.last()) rc.addView(hLine())
-            }
-            listWrap.addView(rc, cardMargin())
         }
 
         // 本服务器开关（开启时若未下载会自动下载）
@@ -169,6 +121,77 @@ class PaperPluginsActivity : androidx.appcompat.app.AppCompatActivity() {
             if (p != PaperPlugins.LIST.last()) sc.addView(hLine())
         }
         listWrap.addView(sc, cardMargin())
+    }
+
+    /** 右上角「插件仓库」按钮：弹出下载对话框（下载全部 + 逐个下载到本地仓库） */
+    private fun showRepoDialog() {
+        val dlg = Dialog(this)
+        dlg.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
+        val root = Ui.linear(this, true)
+        root.setBackgroundColor(getColor(R.color.bg))
+        root.setPadding(Ui.px(this, 18), Ui.px(this, 16), Ui.px(this, 18), Ui.px(this, 18))
+        // 标题行
+        val hb = Ui.linear(this, false); hb.gravity = Gravity.CENTER_VERTICAL
+        hb.addView(Ui.text(this, "插件仓库", 20f, getColor(R.color.text), true), Ui.lp(0, -2, 1f))
+        val close = Ui.text(this, "✕", 22f, getColor(R.color.text_sub), true)
+        close.setPadding(Ui.px(this, 10), 0, 0, 0)
+        close.setOnClickListener { dlg.dismiss() }
+        hb.addView(close)
+        root.addView(hb)
+        root.addView(Ui.text(this, "下载到本地后，可在下方「本服务器插件开关」中启用（需重启服务器）", 12.5f, getColor(R.color.text_sub)).also {
+            it.setPadding(0, Ui.px(this, 6), 0, Ui.px(this, 10)) })
+        // 下载全部
+        val allPending = PaperPlugins.LIST.count { !PaperPlugins.isDownloaded(it.slug) }
+        if (allPending > 0) {
+            val allRow = Ui.linear(this, false); allRow.gravity = Gravity.END
+            val allBtn = Ui.text(this, "下载全部 ($allPending)", 14f, getColor(R.color.green), true)
+            allBtn.setBackgroundResource(R.drawable.bg_console)
+            allBtn.setPadding(Ui.px(this, 14), Ui.px(this, 8), Ui.px(this, 14), Ui.px(this, 8))
+            allBtn.setOnClickListener {
+                if (busy) { Ui.toast(this, "有任务进行中"); return@setOnClickListener }
+                busy = true
+                val n0 = allPending
+                allBtn.text = "下载中 0/$n0"
+                Thread {
+                    val ok = PaperPlugins.downloadAll(3) { d, t -> runOnUiThread { allBtn.text = "下载中 $d/$t" } }
+                    runOnUiThread { busy = false; Ui.toast(this, if (ok) "全部下载完成 ✅" else "部分下载失败"); dlg.dismiss(); render() }
+                }.start()
+            }
+            allRow.addView(allBtn)
+            root.addView(allRow)
+        }
+        // 逐个下载
+        PaperPlugins.LIST.forEachIndexed { i, p ->
+            val row = Ui.linear(this, false)
+            row.gravity = Gravity.CENTER_VERTICAL
+            row.setPadding(0, Ui.px(this, 12), 0, Ui.px(this, 12))
+            val col = Ui.linear(this, true)
+            col.addView(Ui.text(this, p.name, 16f, getColor(R.color.text), true))
+            col.addView(Ui.text(this, p.desc, 12f, getColor(R.color.text_sub)).also { it.setPadding(0, Ui.px(this, 2), 0, 0) })
+            row.addView(col, Ui.lp(0, -2, 1f))
+            val dled = PaperPlugins.isDownloaded(p.slug)
+            val btn = Ui.text(this, if (dled) "已下载 ✓" else "下载", 14f,
+                if (dled) getColor(R.color.text_sub) else getColor(R.color.green), true)
+            btn.setBackgroundResource(R.drawable.bg_console)
+            btn.setPadding(Ui.px(this, 14), Ui.px(this, 8), Ui.px(this, 14), Ui.px(this, 8))
+            if (dled) btn.setOnClickListener(null) else btn.setOnClickListener {
+                if (busy) { Ui.toast(this, "有任务进行中"); return@setOnClickListener }
+                busy = true; btn.text = "下载中 …"
+                Thread {
+                    val ok = PaperPlugins.downloadGlobal(p.slug) { c, t ->
+                        runOnUiThread { btn.text = "下载 ${c / 1024}KB" + if (t > 0) " / ${t / 1024}KB" else "" } }
+                    runOnUiThread { busy = false; Ui.toast(this, if (ok) "${p.name} 已下载" else "下载失败"); dlg.dismiss(); render() }
+                }.start()
+            }
+            row.addView(btn)
+            root.addView(row)
+            if (i < PaperPlugins.LIST.lastIndex) root.addView(hLine())
+        }
+        val scroll = Ui.scroll(this)
+        scroll.addView(root, ViewGroup.LayoutParams(-1, -2))
+        dlg.setContentView(scroll)
+        dlg.window?.setLayout((resources.displayMetrics.widthPixels * 0.92).toInt(), ViewGroup.LayoutParams.WRAP_CONTENT)
+        dlg.show()
     }
 
     private fun sectionCard(title: String, sub: String): LinearLayout {
