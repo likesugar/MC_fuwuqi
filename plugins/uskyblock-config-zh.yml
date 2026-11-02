@@ -1,0 +1,510 @@
+# The language used in the plugin (en is default).
+language: zh_CN
+
+options:
+
+  general:
+
+    # [integer] Max players allowed in a single party, including the leader.
+    maxPartySize: 4
+
+    # [duration] Cooldown for /island info. Use ms, s, m, h, or d. Reset on plugin reload.
+    cooldownInfo: 20s
+
+    # [duration] Cooldown for /island restart. Use ms, s, m, h, or d. Reset on plugin reload.
+    cooldownRestart: 30s
+
+    # [duration] Cooldown for /island biome. Use ms, s, m, h, or d. Reset on plugin reload.
+    biomeChange: 60s
+
+    # [string] The default biome assigned to new overworld islands.
+    defaultBiome: ocean
+
+    # [string] The default biome assigned to new nether islands.
+    defaultNetherBiome: nether_wastes
+
+    # [duration] Minimum interval between repeated notifications
+    # (e.g. pickup/damage prevention). Use ms, s, m, h, or d.
+    maxSpam: 2s
+
+    # [string] Name of the skyblock world. Created automatically if it doesn't exist.
+    worldName: skyworld
+
+    # [integer] Radius around 0,0 where islands will not be placed, to protect spawn.
+    spawnSize: 64
+
+  island:
+
+    # [integer] Y-coordinate (height) where islands are placed.
+    height: 150
+
+    # [integer] Distance in blocks between island centers.
+    distance: 128
+
+    # [integer] Size of the protective region around each island. Cannot exceed 'distance'.
+    # MUST be divisible by 32 if nether is enabled.
+    protectionRange: 128
+
+    # [string] The default island scheme used for /is create.
+    # Must match a key in 'island-schemes'.
+    default-scheme: default
+
+    # [item list] Items placed in the chest when a player starts
+    # a new island. Format: ITEM_ID:AMOUNT.
+    chestItems:
+    - ice:2
+    - melon_slice:1
+    - cactus:1
+    - lava_bucket:1
+    - red_mushroom:1
+    - brown_mushroom:1
+    - pumpkin_seeds:1
+    - sugar_cane:1
+    - oak_sign:1
+
+    # [true/false] Also add perk-based extra items to the starting chest.
+    addExtraItems: true
+
+    # Extra items added to the starting chest for players with the usb.<key> permission.
+    extraPermissions:
+      smallbonus:
+      - cobblestone:16
+      - cooked_porkchop:5
+      mediumbonus:
+      - torch:16
+      - lava_bucket:1
+      largebonus:
+      - dirt:5
+      - sand:5
+      giantbonus:
+      - grass_block:1
+      - mycelium:1
+      extremebonus:
+      - bone:8
+      - coal:4
+      donorbonus:
+      - bow:1
+      - arrow:32
+      - stone_sword:1
+      netheraccess:
+      - obsidian:14
+      - flint_and_steel:1
+
+    # [duration] Delay before teleporting to your island via /island. Use ms, s, m, h, or d.
+    islandTeleportDelay: 2s
+
+    # [number] How far a player may move before an island teleport
+    # is cancelled. Use 0 to disable.
+    teleportCancelDistance: 0.5
+
+    # [true/false] Remove all hostile mobs when a player teleports to their island.
+    removeCreaturesByTeleport: false
+
+    # [allow/deny] Whether PvP combat is allowed on islands.
+    allowPvP: deny
+
+    # [true/false] Allow island leaders to lock/unlock their island with /island lock.
+    allowIslandLock: true
+
+    # [true/false] Enable the /island level command.
+    useIslandLevel: true
+
+    # [true/false] Enable the /island top command (top 10 islands by score).
+    useTopTen: true
+
+    # [duration] How long the top 10 ranking is cached before
+    # recalculating. Use ms, s, m, h, or d.
+    topTenTimeout: 20m
+
+    # [duration] Automatically refresh island levels on this interval.
+    # Use 0m to disable. Use ms, s, m, h, or d.
+    autoRefreshScore: 0m
+
+    # [true/false] Show island member names in the top 10 ranking.
+    topTenShowMembers: true
+
+    # MiniMessage format used in /island chat. Supports <display-name>, <message>, and <usb:KEY> placeholder tags (see the admin docs).
+    chat-format: '<blue>SKY </blue><display-name> <white>></white><light_purple> <message>'
+
+    # [integer] Maximum number of island log entries to keep.
+    log-size: 10
+
+    # Per-entity-type spawn caps for islands. Overridable in island-schemes and donor-perks.
+    spawn-limits:
+      enabled: true
+      animals: 64
+      monsters: 50
+      villagers: 16
+      golems: 5
+      copper-golems: 5
+
+    # Per-block-type placement limits for islands. Add any material name with a max count.
+    block-limits:
+      enabled: true
+      hopper: 50
+      spawner: 10
+
+  extras:
+
+    # [true/false] Send islandless players to server spawn on login.
+    # Requires EssentialsSpawn or another plugin providing /spawn.
+    sendToSpawn: false
+
+    # [true/false] Respawn players on their island instead of server spawn.
+    # Ignored if sendToSpawn is false and the player has no island.
+    respawnAtIsland: true
+
+    # [true/false] Allow right-clicking obsidian with an empty bucket to recover lava.
+    # Only works on the player's own island and not near other obsidian (e.g. portals).
+    obsidianToLava: true
+
+  # Protection flags. When true, the protection is active (the action is blocked).
+  protection:
+
+    # Limit dropped item pickup to party members only.
+    item-drops: true
+
+    # Only creepers targeting party members will explode.
+    creepers: true
+
+    # Limit Wither damage to island members and island blocks only.
+    withers: true
+
+    # Prevent players from accidentally extinguishing lava sources.
+    protect-lava: true
+
+    # Allow villager trading globally. False disables it for everyone.
+    villager-trading-enabled: false
+
+    # Visitor-specific protections. When true, visitors are blocked from the action.
+    visitors:
+
+      # Prevent visitors from trampling crops.
+      trampling: true
+
+      # Prevent visitors from killing animals.
+      kill-animals: true
+
+      # Prevent visitors from killing monsters.
+      kill-monsters: true
+
+      # Prevent visitors from shearing animals.
+      shearing: true
+
+      # Prevent visitor egg throws from hatching.
+      hatching: true
+
+      # Prevent visitors from trading with villagers.
+      villager-trading: true
+
+      # Protect visitors from fall damage.
+      fall: true
+
+      # Protect visitors from fire and lava damage.
+      fire-damage: true
+
+      # Protect visitors from monster damage.
+      monster-damage: false
+
+      # Prevent visitors from dropping items.
+      item-drops: true
+
+      # Notify online island members when a visitor warps to the island.
+      warn-on-warp: true
+
+      # Block banned players from entering the island by walking or flying.
+      block-banned-entry: true
+
+      # Allow visitors to use portals.
+      use-portals: false
+
+      # Allow visitors to mount vehicles.
+      vehicle-enter: false
+
+      # Allow visitors to break vehicles.
+      vehicle-damage: false
+
+  # Controls mob spawning behavior on islands.
+  spawning:
+
+    # Guardian spawning from prismarine habitats in deep ocean biomes.
+    guardians:
+      enabled: true
+
+      # [integer] Max guardians per island habitat.
+      max-per-island: 10
+
+      # [number] Chance (0.0-1.0) that an eligible water-mob spawn becomes a guardian.
+      spawn-chance: 0.1
+
+    # Controls natural Phantom spawning. Does not affect spawn eggs or spawners.
+    phantoms:
+      overworld: true
+      nether: false
+
+  party:
+
+    # [duration] How long an island invite stays valid. Use ms, s, m, h, or d.
+    invite-timeout: 2m
+
+    # MiniMessage format for /partytalk messages.
+    # Supports <display-name>, <message>, and <usb:KEY> placeholder tags (see the admin docs).
+    chat-format: '<blue>PARTY </blue><display-name> <white>></white><aqua> <message>'
+
+    # Commands to execute when a player joins an island party.
+    # Prefix with op: to run as operator.
+    join-commands:
+    - op:playsound block.enderchest.open block @p
+
+    # Commands to execute when a player leaves an island party.
+    # Prefix with op: to run as operator.
+    leave-commands:
+    - op:playsound block.enderchest.close block @p
+
+  # Advanced/performance settings. Change only if you know what you're doing.
+  advanced:
+
+    # [true/false] Use player display names instead of plain names. May impact performance.
+    useDisplayNames: false
+
+    # [number] Islands at or below this level are eligible for purging.
+    purgeLevel: 10
+
+    # [duration] Timeout for confirming risky commands
+    # (e.g. /island leave). Use ms, s, m, h, or d.
+    confirmTimeout: 10s
+
+    # [integer] Chunks to regenerate per server tick. Lower values reduce lag.
+    chunkRegenSpeed: 4
+
+    # [true/false] Let the plugin manage the world spawn area.
+    # If false, use /mv setspawn yourself.
+    manageSpawn: true
+
+    # Player database backend.
+    playerdb:
+
+      # Valid values: yml (file-based), memory (in-RAM, lost on restart),
+      # bukkit (Bukkit's native cache).
+      storage: bukkit
+
+  # What to reset when a player creates or restarts their island.
+  restart:
+
+    # Clear the player's inventory.
+    clearInventory: true
+
+    # Clear the player's armor.
+    clearArmor: true
+
+    # Clear the player's ender chest.
+    clearEnderChest: true
+
+    # Clear permissions granted from challenge rewards.
+    clearPerms: true
+
+    # Reset the player's economy balance to 0.
+    clearCurrency: false
+
+    # [duration] Delay before teleporting the player after
+    # /is create or /is restart. Use ms, s, m, h, or d.
+    teleportDelay: 1000ms
+
+    # [true/false] Automatically teleport the player to their island once it's ready.
+    teleportWhenReady: true
+
+    # Commands to execute after island creation. Example: "me Jumps with <green>joy"
+    extra-commands: []
+
+# Assign additional perks to permission nodes.
+# Each key is a permission (e.g. usb.donor.small).
+# Perks override default spawn limits, party size, and can grant extra starting items.
+donor-perks:
+  'usb.donor.small':
+    extraItems: [bone_meal:1]
+    maxPartySize: 5
+    animals: 84
+    monsters: 60
+    villagers: 20
+    golems: 6
+
+    # [number] Bonus fraction (0.0-1.0) added to challenge XP rewards.
+    rewardBonus: 0.1
+
+    # [number] Fraction (0.0-1.0) by which hunger is reduced.
+    hungerReduction: 0.1
+
+# [true/false] Show a scheme selection GUI for /is create and /is restart.
+island-schemes-enabled: true
+
+# Island schemes available for /is create and /is restart.
+# Each scheme requires a schematic path under 'uSkyBlock/schematics/'.
+# If nether is enabled, a nether-schematic path is also required.
+island-schemes:
+
+  # key of the island scheme, referenced in 'island.default-scheme'
+  default:
+
+    # Relative path under 'uSkyBlock/schematics/' for the overworld schematic.
+    schematic: default.schematic
+
+    # Relative path under 'uSkyBlock/schematics/' for the nether schematic.
+    nether-schematic: uSkyBlockNether.schem
+
+    # Permission required to use this scheme.
+    permission: usb.island.create
+
+    # Description shown in the scheme selection GUI.
+    description: The default uSkyBlock island
+
+    # Item shown in the scheme selection GUI.
+    displayItem: oak_sapling
+
+    # [true/false] Whether this scheme appears in the GUI.
+    enabled: true
+
+    # Display order in the GUI (ascending).
+    index: 2
+
+    # Extra items added to the starting chest for this scheme.
+    extraItems: []
+    maxPartySize: 4
+    animals: 64
+    monsters: 50
+    villagers: 16
+    golems: 5
+
+    # [number] Multiplier applied to the island score (1.0 = 100%).
+    scoreMultiply: 1.0
+
+    # [number] Fixed offset added to the island score.
+    scoreOffset: 0
+
+  # The original SkySMP island scheme
+  skySMP:
+    schematic: skySMP.schematic
+    nether-schematic: uSkyBlockNether.schem
+    permission: usb.schematic.skysmp
+    description: The original SkySMP island
+    displayItem: oak_leaves
+    enabled: false
+    index: 3
+    extraItems:
+    - obsidian:14
+    - flint_and_steel:1
+    maxPartySize: 4
+    animals: 64
+    monsters: 50
+    villagers: 16
+    golems: 5
+    scoreMultiply: 0.9
+    scoreOffset: 40
+
+# Require players to repeat these commands to confirm (prevents accidental use).
+confirmation:
+  is leave: true
+  is restart: true
+
+# AsyncWorldEdit integration. Disable if AWE is not installed.
+asyncworldedit:
+  enabled: true
+
+  watchDog:
+    # [duration] Max time to wait for an AWE paste to complete. Use ms, s, m, h, or d.
+    timeout: 15s
+
+    # [duration] Interval between progress checks. Use ms, s, m, h, or d.
+    heartBeat: 2s
+
+# Show greeting/farewell messages when entering/leaving island regions.
+worldguard:
+  entry-message: true
+  exit-message: true
+
+# [true/false] Enable [usb] challenge signs.
+signs:
+  enabled: true
+
+nether:
+  # [true/false] Enable nether world support.
+  # Requires protectionRange to be divisible by 32.
+  enabled: true
+
+  # [integer] Max Y-coordinate for the nether world. Blocks cannot be placed above this.
+  height: 75
+
+  # [integer] Y-level up to which lava is generated in the nether.
+  lava-level: 7
+
+  # [true/false] Enable terraforming: breaking nether blocks can
+  # spawn new blocks based on probability.
+  terraform-enabled: true
+
+  # [integer] Max distance from the broken block to search for a valid terraform location.
+  terraform-distance: 7
+
+  # Vertical aim range (pitch) in which terraforming is active.
+  # -90 = looking straight up, 90 = looking straight down.
+  terraform-min-pitch: -70.0
+  terraform-max-pitch: 90.0
+
+  # Terraform probabilities per source block. Format: '{p=CHANCE}RESULT_BLOCK'.
+  terraform:
+    NETHERRACK:
+    - '{p=0.30}NETHERRACK'
+    - '{p=0.15}NETHERRACK'
+    - '{p=0.05}NETHER_QUARTZ_ORE'
+    - '{p=0.05}SOUL_SAND'
+    NETHER_QUARTZ_ORE:
+    - '{p=0.30}NETHER_QUARTZ_ORE'
+    - '{p=0.10}NETHER_QUARTZ_ORE'
+    SOUL_SAND:
+    - '{p=0.25}SOUL_SAND'
+    - '{p=0.07}SOUL_SAND'
+    - '{p=0.05}GRAVEL'
+    GRAVEL:
+    - '{p=0.15}GRAVEL'
+    - '{p=0.05}GRAVEL'
+    - '{p=0.05}SOUL_SAND'
+    GLOWSTONE:
+    - '{p=0.80}GLOWSTONE'
+    - '{p=0.15}GLOWSTONE'
+
+  # Multipliers applied to terraform probabilities based on
+  # pickaxe tier. 0 = no terraforming.
+  terraform-weight:
+    WOOD: 0
+    STONE: 1.0
+    IRON: 0.9
+    GOLD: 1.5
+    DIAMOND: 0.2
+    NETHERITE: 1.2
+
+  # Chance (0.0-1.0) to replace a Zombified Piglin spawn on nether bricks with another mob.
+  spawn-chances:
+    enabled: true
+    wither: 0.2
+    skeleton: 0.1
+    blaze: 0.2
+
+# Left-click blocks while holding the tool item to execute commands.
+# Each entry maps a block material to the command to run.
+tool-menu:
+  enabled: true
+  tool: oak_sapling
+  commands:
+    chest: island
+    crafting_table: challenges
+    bedrock: island spawn
+
+# Automatic update checking.
+plugin-updates:
+
+  # [true/false] Check for updates on startup and log a message if one is available.
+  check: true
+
+  # Update channel: RELEASE or STAGING.
+  branch: RELEASE
+
+# DO NOT TOUCH THE FIELDS BELOW
+version: 124
