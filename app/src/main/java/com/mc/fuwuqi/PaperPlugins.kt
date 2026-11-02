@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicInteger
 
 /** Paper 插件统一仓库：从 GitHub raw 直链下载到本地仓库，再按服务器开关 */
 object PaperPlugins {
-    data class P(val slug: String, val name: String, val desc: String)
+    data class P(val slug: String, val name: String, val desc: String, val deps: List<String> = emptyList())
 
     val LIST = listOf(
         P("vault", "Vault", "权限/经济基础，多数插件的前置"),
@@ -24,7 +24,8 @@ object PaperPlugins {
         P("worldguard", "WorldGuard", "领地/区域保护（需 WorldEdit）"),
         P("coreprotect", "CoreProtect", "查熊孩子/回滚破坏"),
         P("multiverse-core", "Multiverse-Core", "多世界管理（创建/传送世界）"),
-        P("squaremap", "Squaremap", "网页地图（浏览器查看 2D 地图）"))
+        P("squaremap", "Squaremap", "网页地图（浏览器查看 2D 地图）"),
+        P("uskyblock", "uSkyBlock", "空岛生存（建岛/挑战/团队）", listOf("worldedit", "worldguard")))
 
     private const val REPO = "https://raw.githubusercontent.com/likesugar/MC_fuwuqi/main/plugins"
     // 多源镜像：直链优先，失败/超时可并行切到 gh-proxy / ghproxy 代理，用于分块并行加速
@@ -52,7 +53,8 @@ object PaperPlugins {
      * 各插件写入独立文件，无共享写冲突。
      */
     fun downloadAll(poolSize: Int = 3, cb: (Int, Int) -> Unit): Boolean {
-        val pending = LIST.filter { !isDownloaded(it.slug) }
+        val need = LIST.flatMap { listOf(it.slug) + it.deps }.distinct()
+        val pending = need.filter { !isDownloaded(it) }
         if (pending.isEmpty()) { cb(0, 0); return true }
         val total = pending.size
         val done = AtomicInteger(0)
@@ -62,7 +64,7 @@ object PaperPlugins {
         for (p in pending) {
             pool.submit {
                 try {
-                    if (!downloadGlobal(p.slug) { _, _ -> }) failed.set(true)
+                    if (!downloadGlobal(p) { _, _ -> }) failed.set(true)
                 } finally {
                     cb(done.incrementAndGet(), total)
                     latch.countDown()
@@ -74,8 +76,11 @@ object PaperPlugins {
         return !failed.get()
     }
 
-    /** 对某服务器启用插件：确保全局已下载，再拷到该服 plugins/；cb 仅用于下载进度 */
+    /** 对某服务器启用插件：先确保依赖已启用，再确保自身已下载并拷到该服 plugins/；cb 仅用于下载进度 */
     fun enableFor(slug: String, serverDir: File, cb: (Long, Long) -> Unit): Boolean {
+        val p = LIST.find { it.slug == slug } ?: return false
+        // 先递归启用依赖（如 uSkyBlock 依赖 WorldEdit + WorldGuard），保证插件能正常加载
+        for (dep in p.deps) if (!enableFor(dep, serverDir, cb)) return false
         if (!isDownloaded(slug) && !downloadGlobal(slug, cb)) return false
         val plugins = File(serverDir, "plugins").apply { mkdirs() }
         val target = File(plugins, "$slug.jar")
