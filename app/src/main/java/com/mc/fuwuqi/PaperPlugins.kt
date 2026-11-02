@@ -19,7 +19,9 @@ object PaperPlugins {
         P("luckperms", "LuckPerms", "权限管理"),
         P("worldedit", "WorldEdit", "建筑编辑神器"),
         P("worldguard", "WorldGuard", "领地/区域保护（需 WorldEdit）"),
-        P("coreprotect", "CoreProtect", "查熊孩子/回滚破坏"))
+        P("coreprotect", "CoreProtect", "查熊孩子/回滚破坏"),
+        P("multiverse-core", "Multiverse-Core", "多世界管理（创建/传送世界）"),
+        P("squaremap", "Squaremap", "网页地图（浏览器查看 2D 地图）"))
 
     private const val REPO = "https://raw.githubusercontent.com/likesugar/MC_fuwuqi/main/plugins"
 
@@ -69,6 +71,8 @@ object PaperPlugins {
         val target = File(plugins, "$slug.jar")
         if (target.isFile && target.length() == globalFile(slug).length()) return true
         globalFile(slug).copyTo(target, overwrite = true)
+        // Squaremap 启用后写入中文配置（汉化包），让网页地图界面显示中文
+        if (slug == "squaremap") applySquaremapZh(serverDir)
         return true
     }
 
@@ -82,6 +86,59 @@ object PaperPlugins {
 
     fun isEnabled(slug: String, serverDir: File): Boolean =
         File(serverDir, "plugins").listFiles()?.any { it.nameWithoutExtension.equals(slug, true) } ?: false
+
+    /**
+     * Squaremap 网页 UI 中文汉化配置。
+     * 网页前端的可见文字（标题/世界列表标签/玩家列表标签/坐标格式/玩家追踪标签）均来自 config.yml，
+     * 并非写死在前端 JS 里，因此汉化只需提供一份中文配置即可。这里只设置 ui / player-tracker / commands
+     * 文案，其余（web 地址、端口、渲染参数等）由插件自身默认值补齐，避免覆盖用户自定义项。
+     */
+    private const val SQUAREMAP_ZH = """ui:
+  title: '服务器地图'
+  coordinates:
+    enabled: true
+    html: '<span class="coords">X: {x}　Z: {z}</span>'
+  link:
+    enabled: true
+  sidebar:
+    pinned: hide
+    world-list-label: '世界'
+    player-list-label: '玩家: {cur}/{max}'
+player-tracker:
+  enabled: true
+  label: '玩家'
+  show-controls: true
+  default-hidden: false
+  update-interval: 1
+commands:
+  main-command-label: 'map'
+"""
+
+    /**
+     * 启用 Squaremap 时写入中文 config.yml（即「汉化包」）。
+     * - 首次：直接写整份中文配置；
+     * - 已存在：仅把英文默认标签替换为中文，保留用户其它配置（web 地址/端口/渲染等）。
+     */
+    fun applySquaremapZh(serverDir: File) {
+        val dir = File(serverDir, "plugins/squaremap").apply { mkdirs() }
+        val cfg = File(dir, "config.yml")
+        if (!cfg.exists()) { cfg.writeText(SQUAREMAP_ZH); return }
+        val lines = cfg.readLines().toMutableList()
+        for (i in lines.indices) {
+            val raw = lines[i]
+            val ind = raw.takeWhile { it == ' ' }
+            val t = raw.trim()
+            lines[i] = when {
+                t.startsWith("world-list-label:") -> ind + "world-list-label: '世界'"
+                t.startsWith("player-list-label:") -> ind + "player-list-label: '玩家: {cur}/{max}'"
+                t.startsWith("html:") -> ind + "html: '<span class=\"coords\">X: {x}　Z: {z}</span>'"
+                t == "title: 'squaremap'" -> ind + "title: '服务器地图'"
+                t == "label: 'Players'" -> ind + "label: '玩家'"
+                else -> raw
+            }
+        }
+        cfg.writeText(lines.joinToString("\n"))
+    }
 
     /** 单一 raw 直链下载（断点续传 + 进度），成功返回 true */
     fun rawDownload(urlStr: String, destFile: File, cb: (Long, Long) -> Unit): Boolean {
