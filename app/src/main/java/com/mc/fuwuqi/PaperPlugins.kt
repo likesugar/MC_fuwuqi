@@ -6,6 +6,9 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
+import java.nio.ByteBuffer
+import java.nio.channels.FileChannel
+import java.nio.file.StandardOpenOption
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -24,16 +27,23 @@ object PaperPlugins {
         P("squaremap", "Squaremap", "网页地图（浏览器查看 2D 地图）"))
 
     private const val REPO = "https://raw.githubusercontent.com/likesugar/MC_fuwuqi/main/plugins"
+    // 多源镜像：直链优先，失败/超时可并行切到 gh-proxy / ghproxy 代理，用于分块并行加速
+    private val MIRRORS = listOf("", "https://gh-proxy.com/", "https://ghproxy.net/")
+    private fun candidateUrls(slug: String): List<String> = MIRRORS.map { it + "$REPO/$slug.jar" }
+    private const val CONNECT_TIMEOUT = 15000
+    private const val READ_TIMEOUT = 20000        // 单块读取停顿超时，超时切下一源
+    private const val MIN_CHUNK = 512 * 1024L     // 小于此不拆块，直接整文件下载
+    private const val PROGRESS_STEP = 200_000L    // 进度回调节流字节数
 
     fun storeDir(): File = File(Store.base, "paper-plugins").apply { mkdirs() }
     fun globalFile(slug: String): File = File(storeDir(), "$slug.jar")
     fun isDownloaded(slug: String): Boolean = globalFile(slug).isFile && globalFile(slug).length() > 0
 
-    /** 下载到全局仓库（断点续传）；cb(当前, 总)；成功返回 true */
+    /** 下载到全局仓库：多源分块并行加速，失败回退多源顺序直链；cb(当前, 总)；成功返回 true */
     fun downloadGlobal(slug: String, cb: (Long, Long) -> Unit): Boolean {
         val dest = globalFile(slug)
         if (dest.isFile && dest.length() > 0) return true
-        return rawDownload("$REPO/$slug.jar", dest, cb)
+        return multiDownload(candidateUrls(slug), dest, cb)
     }
 
     /**
@@ -140,15 +150,15 @@ commands:
         cfg.writeText(lines.joinToString("\n"))
     }
 
-    /** 单一 raw 直链下载（断点续传 + 进度），成功返回 true */
+    /** 单一源下载（断点续传 + 进度），用作多源回退兜底；成功返回 true */
     fun rawDownload(urlStr: String, destFile: File, cb: (Long, Long) -> Unit): Boolean {
         destFile.parentFile?.mkdirs()
         val tmp = File(destFile.absolutePath + ".part")
         var start = if (tmp.isFile) tmp.length() else 0L
         try {
             val conn = URL(urlStr).openConnection() as HttpURLConnection
-            conn.connectTimeout = 20000
-            conn.readTimeout = 60000
+            conn.connectTimeout = CONNECT_TIMEOUT
+            conn.readTimeout = READ_TIMEOUT
             conn.instanceFollowRedirects = true
             conn.setRequestProperty("User-Agent", "MCFuwuqi/1.0")
             if (start > 0) conn.setRequestProperty("Range", "bytes=$start-")
@@ -164,7 +174,7 @@ commands:
                     while (true) {
                         val n = ins.read(buf); if (n < 0) break
                         raf.write(buf, 0, n); got += n; since += n
-                        if (since > 200_000) { since = 0; cb(got, total) }
+                        if (since > PROGRESS_STEP) { since = 0; cb(got, total) }
                     }
                 } finally { raf.close() }
             }
@@ -173,5 +183,116 @@ commands:
             tmp.renameTo(destFile)
             return true
         } catch (e: Exception) { return false }
+    }
+
+    /**
+     * 多源分块并行下载：先探测文件大小，将文件切成多块，各块从不同镜像并行拉取（HTTP Range），
+     * 写入同一文件对应偏移后合并。任一镜像失败自动换源；全部源均不支持分块或无大小则回退整文件顺序直链。
+     */
+    private fun multiDownload(urls: List<String>, dest: File, cb: (Long, Long) -> Unit): Boolean {
+        val tmp = File(dest.absolutePath + ".part")
+        tmp.delete()
+        val total = probeSize(urls)
+        if (total <= 0) return sequentialFallback(urls, dest, cb)
+        val chunkN = if (total < MIN_CHUNK * 4) 1 else minOf(12, maxOf(4, (total / (1024 * 1024)).toInt()))
+        val ranges = buildRanges(total, chunkN)
+        val ch = FileChannel.open(tmp.toPath(), StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.READ)
+        return try {
+            val pool = Executors.newFixedThreadPool(minOf(ranges.size, 6))
+            val ok = AtomicBoolean(true)
+            val latch = CountDownLatch(ranges.size)
+            ranges.forEachIndexed { idx, (s, e) ->
+                pool.submit {
+                    try { if (!fetchChunkRoundRobin(urls, ch, s, e, idx, cb, total)) ok.set(false) }
+                    catch (_: Exception) { ok.set(false) }
+                    finally { latch.countDown() }
+                }
+            }
+            latch.await(); pool.shutdown()
+            val success = ok.get() && tmp.length() == total
+            ch.close()
+            if (success) { tmp.renameTo(dest); true }
+            else { tmp.delete(); sequentialFallback(urls, dest, cb) }
+        } catch (_: Exception) {
+            try { ch.close() } catch (_: Exception) {}
+            tmp.delete(); sequentialFallback(urls, dest, cb)
+        }
+    }
+
+    /** 顺序尝试各源整文件下载（多源回退兜底） */
+    private fun sequentialFallback(urls: List<String>, dest: File, cb: (Long, Long) -> Unit): Boolean {
+        for (u in urls) if (rawDownload(u, dest, cb)) return true
+        return false
+    }
+
+    /** 探测文件总大小（Range bytes=0-0 → Content-Range），拿不到返回 -1 */
+    private fun probeSize(urls: List<String>): Long {
+        for (u in urls) {
+            try {
+                val conn = URL(u).openConnection() as HttpURLConnection
+                conn.connectTimeout = CONNECT_TIMEOUT
+                conn.readTimeout = READ_TIMEOUT
+                conn.instanceFollowRedirects = true
+                conn.setRequestProperty("User-Agent", "MCFuwuqi/1.0")
+                conn.setRequestProperty("Range", "bytes=0-0")
+                conn.connect()
+                val cr = conn.getHeaderField("Content-Range")
+                conn.disconnect()
+                if (!cr.isNullOrEmpty() && cr.contains("/")) {
+                    cr.substringAfterLast("/").trim().toLongOrNull()?.let { if (it > 0) return it }
+                }
+            } catch (_: Exception) {}
+        }
+        return -1
+    }
+
+    /** 将 [0,total) 均分为 n 段（闭区间），返回每段 start/end */
+    private fun buildRanges(total: Long, n: Int): List<Pair<Long, Long>> {
+        val ranges = mutableListOf<Pair<Long, Long>>()
+        val step = total / n
+        var cur = 0L
+        for (i in 0 until n) {
+            val end = if (i == n - 1) total - 1 else cur + step - 1
+            if (end >= cur) ranges.add(cur to end)
+            cur = end + 1
+        }
+        if (ranges.isEmpty()) ranges.add(0L to total - 1)
+        return ranges
+    }
+
+    /** 某块依次尝试各镜像，任一成功即返回 true（idx 错开起点以分散到不同源） */
+    private fun fetchChunkRoundRobin(urls: List<String>, ch: FileChannel, s: Long, e: Long, idx: Int, cb: (Long, Long) -> Unit, total: Long): Boolean {
+        for (attempt in urls.indices) {
+            if (fetchToChannel(urls[(idx + attempt) % urls.size], ch, s, e, cb, total)) return true
+        }
+        return false
+    }
+
+    /** 单块从单源 Range 下载并写入文件对应偏移；不支持分块(非206)或异常返回 false */
+    private fun fetchToChannel(url: String, ch: FileChannel, start: Long, end: Long, cb: (Long, Long) -> Unit, total: Long): Boolean {
+        try {
+            val conn = URL(url).openConnection() as HttpURLConnection
+            conn.connectTimeout = CONNECT_TIMEOUT
+            conn.readTimeout = READ_TIMEOUT
+            conn.instanceFollowRedirects = true
+            conn.setRequestProperty("User-Agent", "MCFuwuqi/1.0")
+            conn.setRequestProperty("Range", "bytes=$start-$end")
+            conn.connect()
+            if (conn.responseCode != 206) { conn.disconnect(); return false }
+            val buf = ByteArray(64 * 1024)
+            var pos = start
+            var since = 0L
+            conn.inputStream.use { ins ->
+                while (pos <= end) {
+                    val n = ins.read(buf); if (n < 0) break
+                    ch.write(ByteBuffer.wrap(buf, 0, n), pos)
+                    pos += n; since += n
+                    if (since > PROGRESS_STEP) { since = 0; cb(ch.size(), total) }
+                }
+                cb(ch.size(), total)
+            }
+            conn.disconnect()
+            return pos - 1 == end
+        } catch (_: Exception) { return false }
     }
 }
