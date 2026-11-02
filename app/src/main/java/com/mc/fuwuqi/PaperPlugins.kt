@@ -88,6 +88,8 @@ object PaperPlugins {
         globalFile(slug).copyTo(target, overwrite = true)
         // Squaremap 启用后写入中文配置（汉化包），让网页地图界面显示中文
         if (slug == "squaremap") applySquaremapZh(serverDir)
+        // uSkyBlock 启用后写入中文汉化包（config 设 zh_CN + 中文挑战）
+        if (slug == "uskyblock") applyUSkyZh(serverDir)
         return true
     }
 
@@ -153,6 +155,29 @@ commands:
             }
         }
         cfg.writeText(lines.joinToString("\n"))
+    }
+
+    /** 下载非 jar 资源（如汉化包 yml）到目标文件；已存在则跳过；多源回退；成功返回 true */
+    private fun downloadFile(relPath: String, dest: File, cb: (Long, Long) -> Unit): Boolean {
+        if (dest.isFile && dest.length() > 0) return true
+        for (m in MIRRORS) {
+            if (rawDownload(m + "$REPO/$relPath", dest, cb)) return true
+        }
+        return false
+    }
+
+    /**
+     * uSkyBlock 中文汉化包。
+     * - config.yml：用官方默认配置（仅 language 改为 zh_CN），插件原生 UI/命令/提示即全中文（zh_CN.po 已内置）；
+     * - challenges.yml：用预翻译的中文挑战（挑战名 100% 中文，描述大部分中文，各国料理名保留原名）。
+     * 仅在插件配置目录尚无该文件时写入，避免覆盖用户后续自定义；插件启动读取即生效，首启即中文。
+     */
+    private fun applyUSkyZh(serverDir: File) {
+        val dir = File(serverDir, "plugins/uSkyBlock").apply { mkdirs() }
+        val cfg = File(dir, "config.yml")
+        if (!cfg.exists()) downloadFile("uskyblock-config-zh.yml", cfg) { _, _ -> }
+        val ch = File(dir, "challenges.yml")
+        if (!ch.exists()) downloadFile("uskyblock-challenges-zh.yml", ch) { _, _ -> }
     }
 
     /** 单一源下载（断点续传 + 进度），用作多源回退兜底；成功返回 true */
