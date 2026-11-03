@@ -1,0 +1,47 @@
+{
+  "mcVersion": "1.21",
+  "plugins": [
+    {
+      "slug": "vault",
+      "name": "Vault",
+      "version": "1.7.3",
+      "desc": "权限/经济基础，多数插件的前置"
+    },
+    {
+      "slug": "luckperms",
+      "name": "LuckPerms",
+      "version": "v5.5.71-bukkit",
+      "desc": "权限管理"
+    },
+    {
+      "slug": "worldedit",
+      "name": "WorldEdit",
+      "version": "7.3.10-beta-01",
+      "desc": "建筑编辑神器"
+    },
+    {
+      "slug": "worldguard",
+      "name": "WorldGuard",
+      "version": "7.0.12",
+      "desc": "领地/区域保护（需 WorldEdit）"
+    },
+    {
+      "slug": "coreprotect",
+      "name": "CoreProtect",
+      "version": "24.1",
+      "desc": "查熊孩子/回滚破坏"
+    },
+    {
+      "slug": "multiverse-core",
+      "name": "Multiverse-Core",
+      "version": "5.8.2",
+      "desc": "多世界管理（创建/传送世界）"
+    },
+    {
+      "slug": "squaremap",
+      "name": "Squaremap",
+      "version": "1.2.6",
+      "desc": "网页地图（轻量实时）"
+    }
+  ]
+}
