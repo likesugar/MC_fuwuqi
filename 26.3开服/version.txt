@@ -1,24 +1,14 @@
-# 26.3 互通服专用资源（main 分支 26.3开服/）
-# 用途：App 在搭建 mcVersion == 1.26.3（Paper 26.3）的互通服时，从本目录统一拉取全部插件。
-# 版本均为作者 1.26.3 互通服实测可用，请勿随意升级。
+# 26.3 互通服专用资源（仅互通核心三件套）
+# 用途：App 搭建 mcVersion == 1.26.3 的互通服时，从此目录 / Release 拉取 Geyser / Floodgate / ViaVersion。
+# 互通服在 App 中仅支持 26.3 一个版本（geyserSupported = ["26.3"]），这些版本须与 26.3 后端严格匹配。
 
 Geyser-Spigot.jar     Geyser      2.12.1-b1279    互通核心：基岩版 <-> Java 版桥接（含 aarch64 WebRTC 原生库）
-                      —— 因体积 52MB 超过 GitHub 文件树单文件上传上限，单独发布在仓库 Release「v1.26.3-geyser」：
+                      —— 体积 52MB 超过 GitHub 文件树单文件上传上限，单独发布在仓库 Release「v1.26.3-geyser」：
                          https://github.com/likesugar/MC_fuwuqi/releases/download/v1.26.3-geyser/Geyser-Spigot.jar
 Floodgate-Spigot.jar  Floodgate   2.2.5-SNAPSHOT  Java/基岩账号桥接（floodgate key 由同服生成）
 ViaVersion-5.12.1.jar ViaVersion  5.12.1          版本桥接（5.12.2 不支持 26.3，会刷 "no compatible versions"，切勿升级）
 
-以下 7 个为作者互通服启用的通用管理插件（App 在 26.3 互通服下同时从本目录拉取，不再走 plugins-v1）：
-vault.jar             Vault       (plugins-v1 同版)  权限/经济基础，多数插件前置
-luckperms.jar         LuckPerms   (plugins-v1 同版)  权限管理
-worldedit.jar         WorldEdit   (plugins-v1 同版)  建筑编辑
-worldguard.jar        WorldGuard  (plugins-v1 同版)  领地/区域保护
-coreprotect.jar       CoreProtect (plugins-v1 同版)  查熊孩子/回滚
-multiverse-core.jar   Multiverse  (plugins-v1 同版)  多世界管理
-uskyblock.jar         uSkyBlock   (plugins-v1 同版)  空岛生存（其汉化包 yml 仍走 plugins-v1）
-
-调用方式（App 侧）：
-- 小文件（Floodgate / ViaVersion / 上述 7 个）base = https://raw.githubusercontent.com/likesugar/MC_fuwuqi/main/26.3开服/
-- Geyser 52MB 走 Release 资源（同上链接）
-- 两者均经 gh-proxy.com 代理下载。
+注意：
+- 7 个通用管理插件（Vault / LuckPerms / WorldEdit / WorldGuard / CoreProtect / Multiverse-Core / uSkyBlock）
+  不属于本目录，它们跨版本通用，统一由 App 从 plugins-v1 Release 拉取（适用于 1.21.x ~ 26.3 区间的插件服）。
 - OpenSSL 原生库（libcrypto.so.3 / libssl.so.3）与 MC 版本无关，不在此目录，仍走 bridge-assets 下载。
