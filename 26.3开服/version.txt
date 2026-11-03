@@ -1,0 +1,12 @@
+# 26.3 互通服专用资源
+# 用途：App 在搭建 mcVersion == 1.26.3（Paper 26.3）的互通服时，调用本目录下的文件。
+# 版本均为作者 1.26.3 互通服实测可用，请勿随意升级。
+
+Geyser-Spigot.jar     Geyser      2.12.1-b1279    互通核心：基岩版 <-> Java 版桥接（含 aarch64 WebRTC 原生库）
+Floodgate-Spigot.jar  Floodgate   2.2.5-SNAPSHOT  Java/基岩账号桥接（floodgate key 由同服生成）
+ViaVersion-5.12.1.jar ViaVersion  5.12.1          版本桥接（5.12.2 不支持 26.3，会刷 "no compatible versions"，切勿升级）
+
+调用方式（App 侧）：
+- base = https://raw.githubusercontent.com/likesugar/MC_fuwuqi/main/26.3开服/
+- 经 gh-proxy.com 代理下载上述三个 jar，覆盖默认的 geysermc.org latest + bridge-assets 链路。
+- OpenSSL 原生库（libcrypto.so.3 / libssl.so.3）与 MC 版本无关，不在此目录，仍走 bridge-assets 下载。
